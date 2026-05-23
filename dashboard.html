@@ -659,8 +659,9 @@ function mkLine(id,datasets,yUnit,h=160){
 
 function ds(label,color,fill=true){
   return{label,data:[],borderColor:color,
-    backgroundColor:fill?color.replace(")",",0.08)").replace("rgb","rgba"):color+"08",
-    borderWidth:1.5,tension:.4,pointRadius:0,fill};
+    backgroundColor:fill?color+"22":color+"08",
+    borderWidth:1.8,tension:.4,pointRadius:0,
+    fill:fill?{target:"origin",above:color+"28",below:color+"28"}:false};
 }
 
 const C={
@@ -889,8 +890,9 @@ function mkLineH(id,datasets,yUnit){
         y:{ticks:{maxTicksLimit:5,font:{size:9}},grid:{color:"#1A3050"}}}}
   });
 }
-function dsH(label,color){return{label,data:[],borderColor:color,backgroundColor:color+"10",
-  borderWidth:1.5,tension:.35,pointRadius:0,fill:true};}
+function dsH(label,color){return{label,data:[],borderColor:color,
+  backgroundColor:color+"20",borderWidth:1.8,tension:.35,pointRadius:0,
+  fill:{target:"origin",above:color+"25",below:color+"25"}};}
 
 async function loadDates(){
   try{
