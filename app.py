@@ -1,35 +1,81 @@
 # ================================================================
 #  app.py — Flask Backend  |  Solar / EV Monitor
-#  ESP32 → POST /api/data  (voltage, current, power, pv, inv, flux)
+#  Database: PostgreSQL (Railway) / fallback SQLite (local)
 # ================================================================
 from flask import Flask, request, jsonify, Response, send_file
 from flask_cors import CORS
-import sqlite3, os, csv, io
+import os, csv, io
 from datetime import datetime
 
 app = Flask(__name__)
 CORS(app)
-DB = os.path.join(os.path.dirname(__file__), "solar.db")
+
+# ── เลือก database อัตโนมัติ ──────────────────────────────────
+DATABASE_URL = os.environ.get("DATABASE_URL", "")
+
+if DATABASE_URL:
+    # Railway PostgreSQL
+    import psycopg2
+    import psycopg2.extras
+    USE_PG = True
+    # Railway ใช้ postgres:// แต่ psycopg2 ต้องการ postgresql://
+    if DATABASE_URL.startswith("postgres://"):
+        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+else:
+    # Local SQLite fallback
+    import sqlite3
+    USE_PG = False
+    DB = os.path.join(os.path.dirname(__file__), "solar.db")
+
+def get_conn():
+    if USE_PG:
+        return psycopg2.connect(DATABASE_URL)
+    else:
+        return sqlite3.connect(DB)
 
 def init_db():
-    with sqlite3.connect(DB) as c:
-        c.execute("""CREATE TABLE IF NOT EXISTS readings (
-            id       INTEGER PRIMARY KEY AUTOINCREMENT,
-            ts       DATETIME DEFAULT (datetime('now','localtime')),
-            voltage  REAL, current REAL, power REAL,
-            vpv1 REAL, cpv1 REAL, vpv2 REAL, cpv2 REAL,
-            vinv REAL, cinv REAL, flux REAL
-        )""")
-        c.commit()
-init_db()
+    conn = get_conn()
+    cur = conn.cursor()
+    if USE_PG:
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS readings (
+                id       SERIAL PRIMARY KEY,
+                ts       TIMESTAMP DEFAULT NOW(),
+                voltage  REAL, current REAL, power REAL,
+                vpv1 REAL, cpv1 REAL, vpv2 REAL, cpv2 REAL,
+                vinv REAL, cinv REAL, flux REAL
+            )
+        """)
+    else:
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS readings (
+                id       INTEGER PRIMARY KEY AUTOINCREMENT,
+                ts       DATETIME DEFAULT (datetime('now','localtime')),
+                voltage  REAL, current REAL, power REAL,
+                vpv1 REAL, cpv1 REAL, vpv2 REAL, cpv2 REAL,
+                vinv REAL, cinv REAL, flux REAL
+            )
+        """)
+    conn.commit()
+    cur.close()
+    conn.close()
 
-@app.route("/")
-def index():
-    return send_file("dashboard.html")
+init_db()
 
 KEYS = ["id","ts","voltage","current","power",
         "vpv1","cpv1","vpv2","cpv2","vinv","cinv","flux"]
-def row2dict(r): return dict(zip(KEYS, r))
+
+def row2dict(row):
+    d = dict(zip(KEYS, row))
+    if d.get("ts"):
+        d["ts"] = str(d["ts"])
+    return d
+
+def fetchall(cur):
+    if USE_PG:
+        return [row2dict(r) for r in cur.fetchall()]
+    else:
+        return [row2dict(r) for r in cur.fetchall()]
 
 # ── POST /api/data ─────────────────────────────────────────────
 @app.route("/api/data", methods=["POST"])
@@ -39,12 +85,18 @@ def recv_data():
     fields = ["voltage","current","power","vpv1","cpv1",
               "vpv2","cpv2","vinv","cinv","flux"]
     vals = [float(d.get(f, 0)) for f in fields]
-    with sqlite3.connect(DB) as c:
-        c.execute("""INSERT INTO readings
+    conn = get_conn()
+    cur  = conn.cursor()
+    if USE_PG:
+        cur.execute("""INSERT INTO readings
+            (voltage,current,power,vpv1,cpv1,vpv2,cpv2,vinv,cinv,flux)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""", vals)
+    else:
+        cur.execute("""INSERT INTO readings
             (voltage,current,power,vpv1,cpv1,vpv2,cpv2,vinv,cinv,flux)
             VALUES (?,?,?,?,?,?,?,?,?,?)""", vals)
-        c.commit()
-    print(f"[{datetime.now():%H:%M:%S}] saved: V={vals[0]:.1f} P={vals[2]:.0f}W flux={vals[9]:.0f}")
+    conn.commit(); cur.close(); conn.close()
+    print(f"[{datetime.now():%H:%M:%S}] saved V={vals[0]:.1f} P={vals[2]:.0f}W")
     return jsonify({"ok": True})
 
 # ── POST /api/flux ─────────────────────────────────────────────
@@ -53,35 +105,49 @@ def recv_flux():
     d = request.get_json(force=True, silent=True)
     if not d: return jsonify({"error":"bad json"}), 400
     flux_val = float(d.get("flux", 0))
-    with sqlite3.connect(DB) as c:
-        row = c.execute("""
+    conn = get_conn(); cur = conn.cursor()
+    if USE_PG:
+        cur.execute("""
+            SELECT id FROM readings
+            WHERE ts >= NOW() - INTERVAL '90 seconds'
+            ORDER BY id DESC LIMIT 1""")
+        row = cur.fetchone()
+        if row:
+            cur.execute("UPDATE readings SET flux=%s WHERE id=%s", (flux_val, row[0]))
+        else:
+            cur.execute("INSERT INTO readings (flux) VALUES (%s)", (flux_val,))
+    else:
+        cur.execute("""
             SELECT id FROM readings
             WHERE ts >= datetime('now','localtime','-90 seconds')
-            ORDER BY id DESC LIMIT 1
-        """).fetchone()
+            ORDER BY id DESC LIMIT 1""")
+        row = cur.fetchone()
         if row:
-            c.execute("UPDATE readings SET flux=? WHERE id=?", (flux_val, row[0]))
+            cur.execute("UPDATE readings SET flux=? WHERE id=?", (flux_val, row[0]))
         else:
-            c.execute("INSERT INTO readings (flux) VALUES (?)", (flux_val,))
-        c.commit()
+            cur.execute("INSERT INTO readings (flux) VALUES (?)", (flux_val,))
+    conn.commit(); cur.close(); conn.close()
     print(f"[{datetime.now():%H:%M:%S}] flux: {flux_val:.0f} W/m²")
     return jsonify({"ok": True})
 
 # ── GET /api/latest ────────────────────────────────────────────
 @app.route("/api/latest")
 def latest():
-    with sqlite3.connect(DB) as c:
-        r = c.execute("SELECT * FROM readings ORDER BY id DESC LIMIT 1").fetchone()
-    return jsonify(row2dict(r)) if r else ("", 204)
+    conn = get_conn(); cur = conn.cursor()
+    cur.execute("SELECT * FROM readings ORDER BY id DESC LIMIT 1")
+    row = cur.fetchone()
+    cur.close(); conn.close()
+    return jsonify(row2dict(row)) if row else ("", 204)
 
 # ── GET /api/realtime ──────────────────────────────────────────
 @app.route("/api/realtime")
 def realtime():
-    with sqlite3.connect(DB) as c:
-        rows = c.execute("""
-            SELECT * FROM (SELECT * FROM readings ORDER BY id DESC LIMIT 60)
-            ORDER BY id
-        """).fetchall()
+    conn = get_conn(); cur = conn.cursor()
+    cur.execute("""
+        SELECT * FROM (SELECT * FROM readings ORDER BY id DESC LIMIT 60) t
+        ORDER BY id ASC""")
+    rows = cur.fetchall()
+    cur.close(); conn.close()
     return jsonify([row2dict(r) for r in rows])
 
 # ── GET /api/history?date=YYYY-MM-DD ──────────────────────────
@@ -89,58 +155,82 @@ def realtime():
 def history():
     date = request.args.get("date","")
     if not date: return jsonify({"error":"date required"}), 400
-    with sqlite3.connect(DB) as c:
-        rows = c.execute(
-            "SELECT * FROM readings WHERE date(ts)=? ORDER BY ts", (date,)
-        ).fetchall()
+    conn = get_conn(); cur = conn.cursor()
+    if USE_PG:
+        cur.execute("SELECT * FROM readings WHERE ts::date=%s ORDER BY ts", (date,))
+    else:
+        cur.execute("SELECT * FROM readings WHERE date(ts)=? ORDER BY ts", (date,))
+    rows = cur.fetchall()
+    cur.close(); conn.close()
     return jsonify([row2dict(r) for r in rows])
 
 # ── GET /api/dates ─────────────────────────────────────────────
 @app.route("/api/dates")
 def dates():
-    with sqlite3.connect(DB) as c:
-        rows = c.execute(
-            "SELECT DISTINCT date(ts) FROM readings ORDER BY 1 DESC"
-        ).fetchall()
-    return jsonify([r[0] for r in rows])
+    conn = get_conn(); cur = conn.cursor()
+    if USE_PG:
+        cur.execute("SELECT DISTINCT ts::date FROM readings ORDER BY 1 DESC")
+    else:
+        cur.execute("SELECT DISTINCT date(ts) FROM readings ORDER BY 1 DESC")
+    rows = cur.fetchall()
+    cur.close(); conn.close()
+    return jsonify([str(r[0]) for r in rows])
 
 # ── GET /api/export?date=YYYY-MM-DD ───────────────────────────
 @app.route("/api/export")
 def export():
     date = request.args.get("date","")
     if not date: return jsonify({"error":"date required"}), 400
-    with sqlite3.connect(DB) as c:
-        rows = c.execute(
-            "SELECT * FROM readings WHERE date(ts)=? ORDER BY ts", (date,)
-        ).fetchall()
+    conn = get_conn(); cur = conn.cursor()
+    if USE_PG:
+        cur.execute("SELECT * FROM readings WHERE ts::date=%s ORDER BY ts", (date,))
+    else:
+        cur.execute("SELECT * FROM readings WHERE date(ts)=? ORDER BY ts", (date,))
+    rows = cur.fetchall()
+    cur.close(); conn.close()
     buf = io.StringIO()
-    w = csv.writer(buf)
-    w.writerow(["วันที่","เวลา","แรงดัน V","กระแส A","กำลังไฟฟ้า W",
-                "V INV (V)","I INV (A)","P INV (W)",
-                "แรงดัน PV1 (V)","กระแส PV1 (A)",
-                "แรงดัน PV2 (V)","กระแส PV2 (A)",
-                "Solar I (W/m2)"])
+    # Header เหมือน Google Sheets
+    csv.writer(buf).writerow([
+        "วันที่","เวลา",
+        "แรงดัน (V)","กระแส (A)","กำลังไฟฟ้า (W)",
+        "V INV (V)","I INV (A)","P INV (W)",
+        "แรงดัน PV1 (V)","กระแส PV1 (A)",
+        "แรงดัน PV2 (V)","กระแส PV2 (A)",
+        "Solar Irradiance (W/m^2)"
+    ])
+    def fmt(v, dp=3):
+        try: return round(float(v), dp) if v is not None else 0
+        except: return 0
+
     for r in rows:
-        ts   = r[1] if r[1] else ""
-        vinv = round((r[9]  or 0)/10,   1)
-        cinv = round((r[10] or 0)/1000, 3)
-        pinv = round(vinv*cinv, 2)
-        vpv1 = round((r[5]  or 0)/10,   1)
-        vpv2 = round((r[7]  or 0)/10,   1)
-        w.writerow([ts[:10], ts[11:19] if len(ts)>=19 else "",
-                    round(r[2] or 0,2), round(r[3] or 0,3), round(r[4] or 0,1),
-                    vinv, cinv, pinv,
-                    vpv1, round(r[6] or 0,3),
-                    vpv2, round(r[8] or 0,3),
-                    round(r[11] or 0,1)])
+        d = row2dict(r)
+        ts  = str(d.get("ts",""))
+        date_part = ts[:10] if len(ts) >= 10 else ""
+        time_part = ts[11:19] if len(ts) >= 19 else ""
+        vinv = fmt(d.get("vinv",0),1) / 10   # หาร 10
+        cinv = fmt(d.get("cinv",0),4) / 1000 # หาร 1000
+        pinv = round(vinv * cinv, 2)
+        vpv1 = fmt(d.get("vpv1",0),1) / 10
+        vpv2 = fmt(d.get("vpv2",0),1) / 10
+        csv.writer(buf).writerow([
+            date_part, time_part,
+            fmt(d.get("voltage",0),2),
+            fmt(d.get("current",0),3),
+            fmt(d.get("power",0),1),
+            round(vinv,1), round(cinv,3), pinv,
+            round(vpv1,1), round(fmt(d.get("cpv1",0),3)/10, 3),
+            round(vpv2,1), round(fmt(d.get("cpv2",0),3)/10, 3),
+            fmt(d.get("flux",0),2),
+        ])
     return Response(buf.getvalue(), mimetype="text/csv",
-        headers={"Content-Disposition": f"attachment;filename=SUT_EV_{date}.csv"})
+        headers={"Content-Disposition": f"attachment;filename=solar_{date}.csv"})
+
+# ── GET / ──────────────────────────────────────────────────────
+@app.route("/")
+def index():
+    return send_file("dashboard.html")
 
 if __name__ == "__main__":
-    import os
     port = int(os.environ.get("PORT", 5000))
-    print("="*50)
-    print("  Solar Monitor Backend")
-    print(f"  http://0.0.0.0:{port}")
-    print("="*50)
+    print(f"Solar Monitor — {'PostgreSQL' if USE_PG else 'SQLite'} — port {port}")
     app.run(host="0.0.0.0", port=port, debug=False)
