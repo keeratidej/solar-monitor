@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>สมาตสเตชั่น · Smart Station</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@400;700;900&family=Sarabun:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg-deep:#07111F;--bg-card:#0B1A2E;--bg-card2:#0D1F36;
+  --border:#1A3050;--border2:#1E3A5F;
+  --cyan:#00C8E8;--cyan2:#0099BB;--cyan-glow:rgba(0,200,232,.15);
+  --green:#00E676;--green2:#00B85A;--green-glow:rgba(0,230,118,.12);
+  --orange:#FF6B2B;--orange2:#E55A1A;--orange-glow:rgba(255,107,43,.12);
+  --amber:#FFB300;--amber-glow:rgba(255,179,0,.12);
+  --red:#FF4444;
+  --pu:#7C6EFA;
+  --tx:#D0E8FF;--tx2:#7FA8CC;--tx3:#3A6080;--tx4:#1E3A5A;
+  --r:10px;
+}
+html{background:var(--bg-deep);color:var(--tx);font-family:'Sarabun',sans-serif;font-size:14px;min-height:100vh}
+body{min-height:100vh;overflow-x:hidden}
+
+/* BG mesh */
+body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:
+    radial-gradient(ellipse 60% 40% at 20% 0%,rgba(0,150,200,.07) 0%,transparent 70%),
+    radial-gradient(ellipse 40% 30% at 80% 100%,rgba(0,100,180,.06) 0%,transparent 70%),
+    linear-gradient(180deg,#07111F 0%,#060E1A 100%);
+}
+/* grid lines */
+body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
+  background-image:linear-gradient(rgba(0,180,220,.025) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(0,180,220,.025) 1px,transparent 1px);
+  background-size:60px 60px;
+}
+#app{position:relative;z-index:1;display:flex;flex-direction:column;min-height:100vh;padding-bottom:40px}
+
+/* ══ HEADER ══ */
+header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:16px 28px;border-bottom:1px solid var(--border);
+  background:linear-gradient(180deg,rgba(7,17,31,.98),rgba(7,17,31,.92));
+  backdrop-filter:blur(12px);position:sticky;top:0;z-index:200;
+}
+.logo-wrap{display:flex;align-items:center;gap:14px}
+.logo-icon{
+  width:44px;height:44px;background:linear-gradient(135deg,var(--cyan),#006688);
+  clip-path:polygon(50% 0%,93% 25%,93% 75%,50% 100%,7% 75%,7% 25%);
+  display:flex;align-items:center;justify-content:center;font-size:18px;
+  box-shadow:0 0 20px rgba(0,200,232,.3);flex-shrink:0;
+}
+.logo-th{font-family:'Orbitron',monospace;font-size:.75rem;font-weight:700;
+  color:var(--cyan);letter-spacing:3px;text-transform:uppercase;text-shadow:0 0 12px rgba(0,200,232,.4)}
+.logo-en{font-size:.62rem;color:var(--tx3);letter-spacing:4px;margin-top:1px}
+.hdr-center{display:flex;align-items:center;gap:24px}
+.live-badge{display:flex;align-items:center;gap:8px;padding:5px 14px;
+  border:1px solid var(--green2);border-radius:20px;background:rgba(0,230,118,.06)}
+.live-dot{width:8px;height:8px;background:var(--green);border-radius:50%;
+  animation:pulse-dot 1.5s ease infinite;box-shadow:0 0 6px var(--green)}
+@keyframes pulse-dot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.8)}}
+.live-txt{font-family:'Orbitron',monospace;font-size:.6rem;color:var(--green);letter-spacing:3px}
+.irr-badge{display:flex;align-items:center;gap:7px;padding:5px 14px;
+  border:1px solid var(--border2);border-radius:20px;font-size:.7rem;color:var(--tx2)}
+.hdr-right{display:flex;flex-direction:column;align-items:flex-end;gap:2px}
+#hdr-time{font-family:'Orbitron',monospace;font-size:1.1rem;font-weight:700;color:#fff;letter-spacing:2px}
+#hdr-date{font-size:.65rem;color:var(--tx3);letter-spacing:2px}
+#hdr-updated{font-size:.6rem;color:var(--tx4);margin-top:1px}
+
+/* ══ NAV ══ */
+nav{display:flex;gap:0;padding:0 28px;border-bottom:1px solid var(--border);background:rgba(7,17,31,.9)}
+.tab{padding:12px 24px;cursor:pointer;font-size:.75rem;font-weight:600;letter-spacing:2px;
+  text-transform:uppercase;color:var(--tx3);border-bottom:2px solid transparent;
+  transition:all .2s;user-select:none;font-family:'Rajdhani',sans-serif}
+.tab:hover{color:var(--tx)}.tab.on{color:var(--cyan);border-bottom-color:var(--cyan)}
+
+/* ══ PAGES ══ */
+.page{display:none;padding:24px 28px}.page.on{display:block}
+
+/* ── Section label ── */
+.sec-label{
+  display:flex;align-items:center;gap:10px;margin-bottom:14px;
+  font-family:'Rajdhani',sans-serif;font-size:.65rem;font-weight:600;
+  letter-spacing:4px;text-transform:uppercase;color:var(--cyan);opacity:.8;
+}
+.sec-label::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,var(--border),transparent)}
+
+/* ══ KPI CARDS ══ */
+.kpi-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:10px;margin-bottom:24px}
+@media(max-width:1200px){.kpi-grid{grid-template-columns:repeat(4,1fr)}}
+@media(max-width:700px){.kpi-grid{grid-template-columns:repeat(2,1fr)}}
+
+.kpi{
+  background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r);
+  padding:16px 14px;position:relative;overflow:hidden;cursor:default;
+  transition:border-color .25s,box-shadow .25s,transform .2s;
+}
+.kpi:hover{transform:translateY(-2px);border-color:var(--kc,var(--cyan));
+  box-shadow:0 8px 24px rgba(0,0,0,.3),0 0 20px var(--kg,var(--cyan-glow))}
+.kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,transparent,var(--kc,var(--cyan)),transparent);opacity:.9}
+.kpi::after{content:'';position:absolute;bottom:0;left:0;right:0;height:40%;
+  background:linear-gradient(0deg,rgba(0,200,232,.03),transparent);pointer-events:none}
+.kpi.gr{--kc:var(--green);--kg:var(--green-glow)}
+.kpi.or{--kc:var(--orange);--kg:var(--orange-glow)}
+.kpi.am{--kc:var(--amber);--kg:var(--amber-glow)}
+.kpi.pu{--kc:var(--pu)}
+.kpi-icon{font-size:1.1rem;margin-bottom:8px;opacity:.7}
+.kpi-label{font-size:.58rem;letter-spacing:2px;text-transform:uppercase;color:var(--tx3);margin-bottom:6px;font-family:'Rajdhani',sans-serif}
+.kpi-label-th{font-size:.7rem;color:var(--tx2);margin-bottom:4px}
+.kpi-val{font-family:'Orbitron',monospace;font-size:1.8rem;font-weight:700;
+  color:#fff;line-height:1;transition:color .3s;letter-spacing:-1px}
+.kpi-unit{font-size:.65rem;color:var(--tx2);margin-top:4px;font-family:'Rajdhani',sans-serif;letter-spacing:1px}
+.kpi-sub{font-size:.6rem;margin-top:6px;font-family:'Rajdhani',sans-serif}
+
+/* ══ POWER FLOW ══ */
+.flow-card{
+  background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r);
+  padding:24px 28px;margin-bottom:24px;position:relative;overflow:hidden;
+}
+.flow-card::before{content:'';position:absolute;inset:0;
+  background:radial-gradient(ellipse 60% 80% at 50% 50%,rgba(0,150,200,.04),transparent);
+  pointer-events:none}
+.flow-wrap{display:flex;align-items:center;justify-content:center;gap:0;flex-wrap:wrap;margin:20px 0 16px}
+.flow-node{
+  display:flex;flex-direction:column;align-items:center;gap:8px;
+  padding:20px 24px;border:1px solid var(--border2);border-radius:12px;
+  min-width:130px;background:var(--bg-card2);position:relative;
+  transition:border-color .3s,box-shadow .3s;
+}
+.flow-node.solar{border-color:rgba(0,230,118,.3);box-shadow:0 0 20px rgba(0,230,118,.08)}
+.flow-node.load{border-color:rgba(0,200,232,.3);box-shadow:0 0 20px rgba(0,200,232,.08)}
+.flow-node.grid-exp{border-color:rgba(0,200,232,.3);box-shadow:0 0 20px rgba(0,200,232,.08)}
+.flow-node.grid-imp{border-color:rgba(255,107,43,.3);box-shadow:0 0 20px rgba(255,107,43,.08)}
+.fn-icon{font-size:2rem}
+.fn-label{font-size:.58rem;letter-spacing:3px;text-transform:uppercase;color:var(--tx3);font-family:'Rajdhani',sans-serif}
+.fn-val{font-family:'Orbitron',monospace;font-size:1.3rem;font-weight:700;color:#fff;transition:color .4s}
+.fn-unit{font-size:.62rem;color:var(--tx2);font-family:'Rajdhani',sans-serif}
+
+.flow-arrow{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:0 8px;min-width:80px;gap:4px;position:relative}
+.arrow-track{width:70px;height:4px;background:var(--border);border-radius:2px;
+  position:relative;overflow:hidden}
+.arrow-track::after{
+  content:'';position:absolute;top:0;left:-100%;height:100%;width:40%;
+  border-radius:2px;animation:flow-anim 1.5s linear infinite;
+}
+.arrow-track.active-exp::after{background:linear-gradient(90deg,transparent,var(--green));animation-duration:1.2s}
+.arrow-track.active-imp::after{background:linear-gradient(90deg,transparent,var(--orange));animation-duration:1.2s;animation-direction:reverse}
+.arrow-track.solar-active::after{background:linear-gradient(90deg,transparent,var(--green))}
+@keyframes flow-anim{from{left:-60%}to{left:110%}}
+.arrow-lbl{font-family:'Orbitron',monospace;font-size:.62rem;color:var(--tx3);text-align:center;transition:color .3s}
+.arrow-dir{font-size:.8rem;color:var(--tx3);transition:color .3s}
+
+.flow-desc{text-align:center;font-size:.8rem;color:var(--tx2);
+  padding:10px 20px;background:rgba(0,0,0,.2);border-radius:8px;
+  border:1px solid var(--border);line-height:1.6;font-family:'Sarabun',sans-serif}
+
+/* ══ CHARTS ══ */
+.chart-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px}
+@media(max-width:900px){.chart-row{grid-template-columns:1fr}}
+.chart-row-4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:14px;margin-bottom:16px}
+@media(max-width:1100px){.chart-row-4{grid-template-columns:1fr 1fr}}
+@media(max-width:700px){.chart-row-4{grid-template-columns:1fr}}
+
+.chart-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r);padding:16px}
+.chart-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px}
+.chart-title{font-family:'Rajdhani',sans-serif;font-size:.65rem;letter-spacing:3px;
+  text-transform:uppercase;color:var(--cyan);display:flex;align-items:center;gap:8px}
+.chart-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.time-btns{display:flex;gap:4px}
+.tbtn{padding:3px 10px;border:1px solid var(--border2);border-radius:4px;
+  font-family:'Orbitron',monospace;font-size:.55rem;cursor:pointer;color:var(--tx3);
+  background:transparent;transition:all .15s}
+.tbtn:hover{border-color:var(--cyan);color:var(--cyan)}
+.tbtn.on{background:rgba(0,200,232,.1);border-color:var(--cyan);color:var(--cyan)}
+canvas{max-height:160px !important}
+
+/* ══ SYSTEM HEALTH ══ */
+.health-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px}
+@media(max-width:900px){.health-grid{grid-template-columns:1fr 1fr}}
+.health-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px}
+.hc-title{font-family:'Rajdhani',sans-serif;font-size:.6rem;letter-spacing:3px;
+  text-transform:uppercase;color:var(--tx3);margin-bottom:12px}
+.hc-row{display:flex;align-items:center;justify-content:space-between;padding:7px 0;
+  border-bottom:1px solid var(--border);font-size:.8rem}
+.hc-row:last-child{border-bottom:none}
+.hc-key{color:var(--tx2);display:flex;align-items:center;gap:8px}
+.hc-key-th{font-size:.72rem;color:var(--tx3)}
+.status-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.s-ok{background:var(--green);box-shadow:0 0 6px var(--green)}
+.s-warn{background:var(--amber);box-shadow:0 0 6px var(--amber)}
+.s-err{background:var(--red);box-shadow:0 0 6px var(--red);animation:blink-err .8s infinite}
+@keyframes blink-err{0%,100%{opacity:1}50%{opacity:.3}}
+.s-val{font-family:'Orbitron',monospace;font-size:.7rem;color:#fff}
+
+.alert-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px}
+.alert-row{display:flex;gap:10px;padding:7px 0;border-bottom:1px solid var(--border);font-size:.75rem}
+.alert-row:last-child{border-bottom:none}
+.alert-time{font-family:'Orbitron',monospace;font-size:.6rem;color:var(--tx3);flex-shrink:0;margin-top:1px}
+.alert-msg{color:var(--tx2);line-height:1.4}
+.alert-ok{color:var(--green)}
+.alert-warn{color:var(--amber)}
+.alert-err{color:var(--red)}
+
+/* ══ HISTORY ══ */
+.hist-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r);
+  padding:14px 18px;margin-bottom:20px}
+input[type=date]{background:#0A1828;color:var(--tx);border:1px solid var(--border2);
+  padding:7px 12px;border-radius:6px;font-family:'Orbitron',monospace;font-size:.7rem;cursor:pointer}
+input[type=date]:focus{outline:none;border-color:var(--cyan)}
+.btn{padding:7px 18px;border:none;border-radius:6px;cursor:pointer;
+  font-family:'Rajdhani',sans-serif;font-size:.8rem;font-weight:600;letter-spacing:1px;transition:all .2s}
+.btn-p{background:var(--cyan);color:#07111F}.btn-p:hover{filter:brightness(1.1);box-shadow:0 0 12px var(--cyan-glow)}
+.btn-e{background:transparent;color:var(--amber);border:1px solid var(--amber)}.btn-e:hover{background:var(--amber-glow)}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px}
+.chip{padding:4px 12px;border:1px solid var(--border2);border-radius:20px;
+  font-family:'Orbitron',monospace;font-size:.62rem;cursor:pointer;transition:all .15s;color:var(--tx3)}
+.chip:hover{border-color:var(--cyan);color:var(--cyan)}
+.chip.on{border-color:var(--cyan);color:var(--cyan);background:rgba(0,200,232,.08)}
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:20px}
+.stat-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px}
+.stat-name{font-size:.58rem;letter-spacing:2px;text-transform:uppercase;color:var(--tx3);
+  margin-bottom:8px;font-family:'Rajdhani',sans-serif}
+.stat-row{display:flex;justify-content:space-between;font-size:.78rem;padding:2px 0}
+.stat-k{color:var(--tx3)}.stat-v{font-family:'Orbitron',monospace;color:#fff;font-size:.72rem}
+.nodata{text-align:center;padding:60px;color:var(--tx3);font-family:'Orbitron',monospace;font-size:.7rem;letter-spacing:3px}
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- ══ HEADER ══ -->
+<header>
+  <div class="logo-wrap">
+    <div class="logo-icon">⚡</div>
+    <div>
+      <div class="logo-th">สมาตสเตชั่น</div>
+      <div class="logo-en">Smart EV Solar Station · Monitoring</div>
+    </div>
+  </div>
+  <div class="hdr-center">
+    <div class="live-badge">
+      <div class="live-dot"></div>
+      <span class="live-txt">LIVE</span>
+    </div>
+    <div class="irr-badge" id="irr-badge">🌤 --- W/m²</div>
+  </div>
+  <div class="hdr-right">
+    <div id="hdr-time">--:--:--</div>
+    <div id="hdr-date">-- / -- / ----</div>
+    <div id="hdr-updated">Last update: --:--:--</div>
+  </div>
+</header>
+
+<!-- ══ NAV ══ -->
+<nav>
+  <div class="tab on" data-tab="rt" onclick="goTab(this)">⚡ Real-time</div>
+  <div class="tab" data-tab="sys" onclick="goTab(this)">🔧 System</div>
+  <div class="tab" data-tab="hi" onclick="goTab(this)">📅 ประวัติ</div>
+</nav>
+
+<!-- ══════════════ REAL-TIME ══════════════ -->
+<div class="page on" id="pg-rt">
+
+  <!-- KPI -->
+  <div class="sec-label">KPI Overview</div>
+  <div class="kpi-grid">
+    <div class="kpi gr">
+      <div class="kpi-icon">☀</div>
+      <div class="kpi-label">Solar Power</div>
+      <div class="kpi-label-th">กำลังผลิต Solar</div>
+      <div class="kpi-val" id="k-pinv">--.-</div>
+      <div class="kpi-unit">kW</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-icon">⚡</div>
+      <div class="kpi-label">Load</div>
+      <div class="kpi-label-th">โหลดรวม</div>
+      <div class="kpi-val" id="k-load">--.-</div>
+      <div class="kpi-unit">kW</div>
+    </div>
+    <div class="kpi or" id="kpi-grid-card">
+      <div class="kpi-icon" id="kpi-grid-icon">🔌</div>
+      <div class="kpi-label">Grid</div>
+      <div class="kpi-label-th" id="kpi-grid-th">กริด</div>
+      <div class="kpi-val" id="k-pgrid">--.-</div>
+      <div class="kpi-unit">kW</div>
+      <div class="kpi-sub" id="kpi-grid-sub" style="color:var(--tx3)">--</div>
+    </div>
+    <div class="kpi pu">
+      <div class="kpi-icon">⚙</div>
+      <div class="kpi-label">P INV</div>
+      <div class="kpi-label-th">กำลัง Inverter</div>
+      <div class="kpi-val" id="k-pinvw">----</div>
+      <div class="kpi-unit">W</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-icon">〰</div>
+      <div class="kpi-label">Voltage</div>
+      <div class="kpi-label-th">แรงดันกริด</div>
+      <div class="kpi-val" id="k-v">---.-</div>
+      <div class="kpi-unit">V AC</div>
+    </div>
+    <div class="kpi am">
+      <div class="kpi-icon">⟳</div>
+      <div class="kpi-label">Current</div>
+      <div class="kpi-label-th">กระแสกริด</div>
+      <div class="kpi-val" id="k-a">--.-</div>
+      <div class="kpi-unit">A</div>
+    </div>
+    <div class="kpi gr">
+      <div class="kpi-icon">📊</div>
+      <div class="kpi-label">Today</div>
+      <div class="kpi-label-th">พลังงานวันนี้</div>
+      <div class="kpi-val" id="k-today">--.-</div>
+      <div class="kpi-unit">kWh (est.)</div>
+    </div>
+  </div>
+
+  <!-- POWER FLOW -->
+  <div class="sec-label">Power Flow · ทิศทางพลังงาน</div>
+  <div class="flow-card">
+    <div class="flow-wrap">
+      <div class="flow-node solar">
+        <div class="fn-icon">☀</div>
+        <div class="fn-label">Solar</div>
+        <div class="fn-val" id="fn-solar" style="color:var(--green)">--.-</div>
+        <div class="fn-unit">kW</div>
+      </div>
+      <div class="flow-arrow">
+        <div class="arrow-dir">→</div>
+        <div class="arrow-track solar-active" id="arr-solar"></div>
+        <div class="arrow-lbl" id="arr-solar-lbl">--W</div>
+      </div>
+      <div class="flow-node load">
+        <div class="fn-icon">🏭</div>
+        <div class="fn-label">Load</div>
+        <div class="fn-val" id="fn-load" style="color:var(--cyan)">--.-</div>
+        <div class="fn-unit">kW (est.)</div>
+      </div>
+      <div class="flow-arrow">
+        <div class="arrow-dir" id="arr-grid-dir">→</div>
+        <div class="arrow-track" id="arr-grid"></div>
+        <div class="arrow-lbl" id="arr-grid-lbl">--W</div>
+      </div>
+      <div class="flow-node" id="fn-grid-node">
+        <div class="fn-icon">🔌</div>
+        <div class="fn-label">Grid</div>
+        <div class="fn-val" id="fn-grid">--.-</div>
+        <div class="fn-unit">kW</div>
+      </div>
+    </div>
+    <div class="flow-desc" id="flow-desc">— กำลังรอข้อมูล —</div>
+  </div>
+
+  <!-- CHARTS ROW 1 -->
+  <div class="sec-label">Electrical Trends · แนวโน้มไฟฟ้า</div>
+  <div class="chart-row">
+    <div class="chart-card">
+      <div class="chart-hdr">
+        <div class="chart-title"><div class="chart-dot" style="background:var(--cyan)"></div>Voltage · แรงดัน (V)</div>
+        <div class="time-btns"><button class="tbtn on" onclick="setRange(this,'1H')">1H</button><button class="tbtn" onclick="setRange(this,'6H')">6H</button><button class="tbtn" onclick="setRange(this,'1D')">1D</button></div>
+      </div>
+      <canvas id="c-v"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-hdr">
+        <div class="chart-title"><div class="chart-dot" style="background:var(--amber)"></div>Current · กระแส (A)</div>
+        <div class="time-btns"><button class="tbtn on" onclick="setRange(this,'1H')">1H</button><button class="tbtn" onclick="setRange(this,'6H')">6H</button><button class="tbtn" onclick="setRange(this,'1D')">1D</button></div>
+      </div>
+      <canvas id="c-a"></canvas>
+    </div>
+  </div>
+
+  <!-- CHARTS ROW 2 -->
+  <div class="chart-row">
+    <div class="chart-card">
+      <div class="chart-hdr">
+        <div class="chart-title"><div class="chart-dot" style="background:var(--pu)"></div>Inverter Power · กำลัง Inverter (W)</div>
+      </div>
+      <canvas id="c-pinv"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-hdr">
+        <div class="chart-title">
+          <div class="chart-dot" style="background:var(--green)"></div>P INV &amp; Grid Power (W)
+          <span style="font-size:.55rem;color:var(--tx3);margin-left:4px">ลบ=EXPORT</span>
+        </div>
+      </div>
+      <canvas id="c-pw"></canvas>
+    </div>
+  </div>
+
+  <!-- CHARTS ROW 3: PV -->
+  <div class="sec-label">PV Strings · แผงโซลาร์</div>
+  <div class="chart-row-4">
+    <div class="chart-card">
+      <div class="chart-hdr"><div class="chart-title"><div class="chart-dot" style="background:var(--amber)"></div>PV1 Voltage (V)</div></div>
+      <canvas id="c-pv1v"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-hdr"><div class="chart-title"><div class="chart-dot" style="background:var(--orange)"></div>PV2 Voltage (V)</div></div>
+      <canvas id="c-pv2v"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-hdr"><div class="chart-title"><div class="chart-dot" style="background:var(--amber)"></div>PV1 Current (A)</div></div>
+      <canvas id="c-pv1a"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-hdr"><div class="chart-title"><div class="chart-dot" style="background:var(--orange)"></div>PV2 Current (A)</div></div>
+      <canvas id="c-pv2a"></canvas>
+    </div>
+  </div>
+
+  <!-- SOLAR IRRADIANCE -->
+  <div class="sec-label">Solar Irradiance · ความเข้มแสง</div>
+  <div class="chart-row">
+    <div class="chart-card" style="display:flex;align-items:center;gap:28px;flex-wrap:wrap">
+      <div>
+        <div style="font-size:.58rem;letter-spacing:3px;text-transform:uppercase;color:var(--tx3);margin-bottom:6px;font-family:'Rajdhani',sans-serif">Solar I · W/m²</div>
+        <div style="font-family:'Orbitron',monospace;font-size:3rem;font-weight:900;color:#fff;line-height:1;transition:color .4s" id="flux-big">---</div>
+        <div style="font-size:.68rem;color:var(--tx2);margin-top:4px">W/m²</div>
+        <div style="font-size:.75rem;color:var(--tx2);margin-top:8px" id="flux-st">—</div>
+      </div>
+      <div style="flex:1;min-width:200px">
+        <div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin-bottom:6px">
+          <div id="flux-bar" style="height:100%;border-radius:4px;background:linear-gradient(90deg,#4fc3f7,var(--amber),var(--orange),var(--red));transition:width .6s;width:0%"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-family:'Orbitron',monospace;font-size:.55rem;color:var(--tx3)">
+          <span>0</span><span>250</span><span>500</span><span>750</span><span>1000</span>
+        </div>
+      </div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-hdr"><div class="chart-title"><div class="chart-dot" style="background:var(--orange)"></div>Solar Irradiance Trend · W/m²</div></div>
+      <canvas id="c-fx"></canvas>
+    </div>
+  </div>
+
+</div><!-- /rt -->
+
+<!-- ══════════════ SYSTEM HEALTH ══════════════ -->
+<div class="page" id="pg-sys">
+  <div class="sec-label">System Status · สถานะระบบ</div>
+  <div class="health-grid">
+    <div class="health-card">
+      <div class="hc-title">🔌 Connectivity · การเชื่อมต่อ</div>
+      <div class="hc-row">
+        <span class="hc-key"><div class="status-dot s-ok" id="s-esp32"></div>ESP32</span>
+        <span class="s-val" id="sv-esp32">ONLINE</span>
+      </div>
+      <div class="hc-row">
+        <span class="hc-key"><div class="status-dot s-ok" id="s-flask"></div>Flask Backend</span>
+        <span class="s-val" id="sv-flask">ONLINE</span>
+      </div>
+      <div class="hc-row">
+        <span class="hc-key"><div class="status-dot" id="s-meter"></div>Power Meter<br><span class="hc-key-th">192.168.1.254</span></span>
+        <span class="s-val" id="sv-meter">--</span>
+      </div>
+      <div class="hc-row">
+        <span class="hc-key"><div class="status-dot" id="s-inv"></div>Inverter<br><span class="hc-key-th">192.168.1.108</span></span>
+        <span class="s-val" id="sv-inv">--</span>
+      </div>
+    </div>
+    <div class="health-card">
+      <div class="hc-title">☀ Solar · แผงโซลาร์</div>
+      <div class="hc-row"><span class="hc-key">PV1 Voltage</span><span class="s-val" id="sh-vp1">-- V</span></div>
+      <div class="hc-row"><span class="hc-key">PV1 Current</span><span class="s-val" id="sh-cp1">-- A</span></div>
+      <div class="hc-row"><span class="hc-key">PV2 Voltage</span><span class="s-val" id="sh-vp2">-- V</span></div>
+      <div class="hc-row"><span class="hc-key">PV2 Current</span><span class="s-val" id="sh-cp2">-- A</span></div>
+    </div>
+    <div class="health-card">
+      <div class="hc-title">⚙ Inverter · อินเวอร์เตอร์</div>
+      <div class="hc-row"><span class="hc-key">V INV</span><span class="s-val" id="sh-vinv">-- V</span></div>
+      <div class="hc-row"><span class="hc-key">I INV</span><span class="s-val" id="sh-cinv">-- A</span></div>
+      <div class="hc-row"><span class="hc-key">P INV</span><span class="s-val" id="sh-pinv">-- W</span></div>
+      <div class="hc-row"><span class="hc-key">Status</span><span class="s-val" id="sh-invst" style="color:var(--tx3)">--</span></div>
+    </div>
+  </div>
+
+  <div class="sec-label">Alert Log · บันทึกการแจ้งเตือน</div>
+  <div class="alert-card">
+    <div id="alert-log">
+      <div class="alert-row"><span class="alert-time">--:--:--</span><span class="alert-msg">รอการเชื่อมต่อ...</span></div>
+    </div>
+  </div>
+</div><!-- /sys -->
+
+<!-- ══════════════ HISTORY ══════════════ -->
+<div class="page" id="pg-hi">
+  <div class="hist-bar">
+    <span style="color:var(--tx3);font-size:.8rem;font-family:'Rajdhani',sans-serif;letter-spacing:1px">เลือกวันที่</span>
+    <input type="date" id="hdate">
+    <button class="btn btn-p" onclick="loadHist()">ดูข้อมูล</button>
+    <button class="btn btn-e" onclick="exportCsv()">↓ Export CSV</button>
+  </div>
+  <div class="sec-label">วันที่มีข้อมูล</div>
+  <div class="chips" id="chips"></div>
+  <div id="hcontent" style="display:none">
+    <div class="sec-label">สรุปรายวัน</div>
+    <div class="stats-grid" id="sgrid"></div>
+    <div class="sec-label">กราฟรายวัน</div>
+    <div class="chart-row">
+      <div class="chart-card"><div class="chart-hdr"><div class="chart-title"><div class="chart-dot" style="background:var(--cyan)"></div>Voltage (V)</div></div><canvas id="hc-v"></canvas></div>
+      <div class="chart-card"><div class="chart-hdr"><div class="chart-title"><div class="chart-dot" style="background:var(--amber)"></div>Current (A)</div></div><canvas id="hc-a"></canvas></div>
+    </div>
+    <div class="chart-row">
+      <div class="chart-card"><div class="chart-hdr"><div class="chart-title"><div class="chart-dot" style="background:var(--pu)"></div>V INV &amp; I INV</div></div><canvas id="hc-inv"></canvas></div>
+      <div class="chart-card"><div class="chart-hdr"><div class="chart-title"><div class="chart-dot" style="background:var(--amber)"></div>PV1/PV2 Voltage (V)</div></div><canvas id="hc-pv"></canvas></div>
+    </div>
+    <div class="chart-row">
+      <div class="chart-card"><div class="chart-hdr"><div class="chart-title"><div class="chart-dot" style="background:var(--amber)"></div>PV1/PV2 Current (A)</div></div><canvas id="hc-pc"></canvas></div>
+      <div class="chart-card"><div class="chart-hdr"><div class="chart-title"><div class="chart-dot" style="background:var(--green)"></div>P INV &amp; Grid Power (W)</div></div><canvas id="hc-pw"></canvas></div>
+    </div>
+    <div style="margin-bottom:20px">
+      <div class="chart-card"><div class="chart-hdr"><div class="chart-title"><div class="chart-dot" style="background:var(--orange)"></div>Solar Irradiance (W/m²)</div></div><canvas id="hc-fx" style="max-height:140px !important"></canvas></div>
+    </div>
+  </div>
+  <div class="nodata" id="hnodata" style="display:none">NO DATA FOUND</div>
+</div>
+
+</div><!-- /app -->
+
+<script>
+const API="/api", POLL=60000, FLUX_POLL=5000, MAX=60;
+let energyAccum=0, lastTs=null;
+
+// ── Tab ─────────────────────────────────────────────────────
+function goTab(el){
+  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("on"));
+  document.querySelectorAll(".page").forEach(p=>p.classList.remove("on"));
+  el.classList.add("on");
+  document.getElementById("pg-"+el.dataset.tab).classList.add("on");
+  if(el.dataset.tab==="hi") loadDates();
+}
+
+function setRange(el,r){
+  el.closest(".time-btns").querySelectorAll(".tbtn").forEach(b=>b.classList.remove("on"));
+  el.classList.add("on");
+}
+
+// ── Chart defaults ───────────────────────────────────────────
+Chart.defaults.color="#3A6080";
+Chart.defaults.borderColor="#1A3050";
+Chart.defaults.font.family="'Rajdhani',sans-serif";
+Chart.defaults.font.size=11;
+
+function mkLine(id,datasets,yUnit,h=160){
+  const el=document.getElementById(id);if(!el)return null;
+  return new Chart(el.getContext("2d"),{
+    type:"line",data:{labels:[],datasets},
+    options:{
+      responsive:true,maintainAspectRatio:true,animation:{duration:300},
+      plugins:{
+        legend:{display:datasets.length>1,labels:{boxWidth:8,padding:14,font:{size:10}}},
+        tooltip:{backgroundColor:"#0B1A2E",borderColor:"#1A3050",borderWidth:1,
+          titleColor:"#D0E8FF",bodyColor:"#7FA8CC",padding:10,
+          mode:"index",intersect:false,
+          callbacks:{label:ctx=>` ${ctx.dataset.label}: ${ctx.parsed.y.toFixed(3)} ${yUnit}`}}
+      },
+      scales:{
+        x:{ticks:{maxTicksLimit:7,font:{size:9}},grid:{color:"#0D1F36"}},
+        y:{ticks:{maxTicksLimit:5,font:{size:9}},grid:{color:"#1A3050"}}
+      }
+    }
+  });
+}
+
+function ds(label,color,fill=true){
+  return{label,data:[],borderColor:color,
+    backgroundColor:fill?color.replace(")",",0.08)").replace("rgb","rgba"):color+"08",
+    borderWidth:1.5,tension:.4,pointRadius:0,fill};
+}
+
+const C={
+  v:    mkLine("c-v",   [ds("V","#00C8E8")],"V"),
+  a:    mkLine("c-a",   [ds("A","#FFB300")],"A"),
+  pinv: mkLine("c-pinv",[ds("P INV","#7C6EFA")],"W"),
+  pw:   mkLine("c-pw",  [ds("P INV","#00E676"),ds("Pgrid","#FF6B2B")],"W"),
+  pv1v: mkLine("c-pv1v",[ds("PV1 V","#FFB300")],"V"),
+  pv2v: mkLine("c-pv2v",[ds("PV2 V","#FF6B2B")],"V"),
+  pv1a: mkLine("c-pv1a",[ds("PV1 A","#FFB300")],"A"),
+  pv2a: mkLine("c-pv2a",[ds("PV2 A","#FF6B2B")],"A"),
+  fx:   mkLine("c-fx",  [ds("Solar I","#FF6B2B")],"W/m²"),
+};
+
+function push(chart,ts,...vals){
+  if(!chart)return;
+  chart.data.labels.push(ts);
+  vals.forEach((v,i)=>chart.data.datasets[i].data.push(v));
+  if(chart.data.labels.length>MAX){chart.data.labels.shift();chart.data.datasets.forEach(d=>d.data.shift());}
+  chart.update("none");
+}
+
+// ── KPI helper ───────────────────────────────────────────────
+function kset(id,v,dp=2){const el=document.getElementById(id);if(el)el.textContent=v!=null?Number(v).toFixed(dp):"--";}
+
+// ── Flux ─────────────────────────────────────────────────────
+let lastFlux=0;
+function showFlux(v){
+  document.getElementById("flux-big").textContent=Math.round(v);
+  document.getElementById("flux-bar").style.width=Math.min(v/1000*100,100)+"%";
+  const n=document.getElementById("flux-big"),s=document.getElementById("flux-st");
+  const badge=document.getElementById("irr-badge");
+  badge.textContent="🌤 "+Math.round(v)+" W/m²";
+  if(v<80){n.style.color="#7FA8CC";s.textContent="☁ Overcast · ครึ้มฟ้า";}
+  else if(v<300){n.style.color=var_c("--amber");s.textContent="⛅ Partly Cloudy · มีเมฆบางส่วน";}
+  else if(v<600){n.style.color=var_c("--orange");s.textContent="🌤 Moderate · แสงแดดปานกลาง";}
+  else{n.style.color=var_c("--red");s.textContent="☀ Peak Irradiance · แสงแดดจัด";}
+}
+function var_c(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim()}
+
+// ── Power flow ───────────────────────────────────────────────
+function updateFlow(pinv,pgrid,p){
+  const pinvkw=(pinv/1000).toFixed(2);
+  const pgridkw=Math.abs(pgrid/1000).toFixed(2);
+  const load=((pinv+pgrid)/1000).toFixed(2); // load = solar + import
+
+  document.getElementById("fn-solar").textContent=(pinv/1000).toFixed(2);
+  document.getElementById("fn-load").textContent=Math.abs(load);
+  document.getElementById("fn-grid").textContent=pgridkw;
+  document.getElementById("arr-solar-lbl").textContent=(pinv/1000).toFixed(2)+"kW";
+  document.getElementById("arr-grid-lbl").textContent=pgridkw+"kW";
+
+  const gridNode=document.getElementById("fn-grid-node");
+  const gridVal=document.getElementById("fn-grid");
+  const arrGrid=document.getElementById("arr-grid");
+  const arrDir=document.getElementById("arr-grid-dir");
+  const desc=document.getElementById("flow-desc");
+  const kpiGC=document.getElementById("kpi-grid-card");
+  const kpiGIcon=document.getElementById("kpi-grid-icon");
+  const kpiGTh=document.getElementById("kpi-grid-th");
+  const kpiGSub=document.getElementById("kpi-grid-sub");
+
+  if(pgrid<-50){
+    gridNode.className="flow-node grid-exp";
+    gridVal.style.color=var_c("--green");
+    arrGrid.className="arrow-track active-exp";
+    arrDir.textContent="→"; arrDir.style.color=var_c("--green");
+    desc.innerHTML='<span style="color:var(--green)">↑ EXPORT — ส่งไฟออกกริด</span> · Solar ผลิตได้มากกว่าโหลด ส่งไฟส่วนเกินคืนกริด';
+    kpiGC.className="kpi gr";
+    kpiGIcon.textContent="📤"; kpiGTh.textContent="ส่งออกกริด";
+    kpiGSub.style.color=var_c("--green"); kpiGSub.textContent="↑ EXPORT";
+  }else if(pgrid>50){
+    gridNode.className="flow-node grid-imp";
+    gridVal.style.color=var_c("--orange");
+    arrGrid.className="arrow-track active-imp";
+    arrDir.textContent="←"; arrDir.style.color=var_c("--orange");
+    desc.innerHTML='<span style="color:var(--orange)">↓ IMPORT — ดึงไฟจากกริด</span> · โหลดสูงกว่ากำลังผลิต Solar กำลังดึงไฟเสริมจากกริด';
+    kpiGC.className="kpi or";
+    kpiGIcon.textContent="📥"; kpiGTh.textContent="ดึงไฟจากกริด";
+    kpiGSub.style.color=var_c("--orange"); kpiGSub.textContent="↓ IMPORT";
+  }else{
+    gridNode.className="flow-node load";
+    gridVal.style.color=var_c("--cyan");
+    arrGrid.className="arrow-track";
+    arrDir.textContent="↔"; arrDir.style.color=var_c("--tx3");
+    desc.textContent="⚖ สมดุล — Solar ผลิตได้เท่ากับโหลด";
+    kpiGC.className="kpi";
+    kpiGIcon.textContent="🔌"; kpiGTh.textContent="กริด (สมดุล)";
+    kpiGSub.style.color=var_c("--tx3"); kpiGSub.textContent="~0 kW";
+  }
+}
+
+// ── Process record ───────────────────────────────────────────
+function process(d,pushChart=true){
+  const ts=d.ts?d.ts.slice(11,16):"--:--";
+  const v=d.voltage||0, a=d.current||0, p=d.power||0;
+  const vi=(d.vinv||0)/10, ci=(d.cinv||0)/1000;
+  const pinv=vi*ci;
+  const vp1=(d.vpv1||0)/10,cp1=d.cpv1||0,vp2=(d.vpv2||0)/10,cp2=d.cpv2||0;
+  const load=pinv+p;
+
+  // KPI
+  kset("k-pinv",(pinv/1000),2);
+  kset("k-load",(Math.abs(load)/1000),2);
+  kset("k-pgrid",(Math.abs(p)/1000),2);
+  kset("k-pinvw",pinv,0);
+  kset("k-v",v,1);
+  kset("k-a",a,3);
+
+  // system tab
+  kset("sh-vp1",vp1.toFixed(1)+" V",0);
+  kset("sh-cp1",cp1.toFixed(3)+" A",0);
+  kset("sh-vp2",vp2.toFixed(1)+" V",0);
+  kset("sh-cp2",cp2.toFixed(3)+" A",0);
+  kset("sh-vinv",vi.toFixed(1)+" V",0);
+  kset("sh-cinv",ci.toFixed(3)+" A",0);
+  kset("sh-pinv",pinv.toFixed(1)+" W",0);
+  const invSt=document.getElementById("sh-invst");
+  if(invSt){
+    if(pinv>10){invSt.textContent="RUNNING";invSt.style.color=var_c("--green");}
+    else if(ci>0.3){invSt.textContent="STANDBY";invSt.style.color=var_c("--amber");}
+    else{invSt.textContent="OFFLINE";invSt.style.color=var_c("--tx3");}
+  }
+
+  // Connectivity dots
+  const now=Date.now();
+  const lastSec=d.ts?Math.floor((now-new Date(d.ts.replace(" ","T")).getTime())/1000):9999;
+  const meterOk=v>100;
+  const invOk=vi>100;
+  setDot("s-meter","sv-meter",meterOk,"OK","--");
+  setDot("s-inv","sv-inv",invOk,"OK","--");
+
+  // power flow
+  updateFlow(pinv,p,p);
+
+  // energy accumulation (rough estimate)
+  if(pushChart && lastTs){
+    const dtH=(new Date(d.ts.replace(" ","T"))-new Date(lastTs.replace(" ","T")))/3600000;
+    if(dtH>0&&dtH<2) energyAccum+=Math.max(0,pinv)*dtH;
+  }
+  lastTs=d.ts;
+  kset("k-today",(energyAccum/1000),2);
+
+  if(pushChart){
+    push(C.v,ts,v);push(C.a,ts,a);
+    push(C.pinv,ts,pinv);push(C.pw,ts,pinv,p);
+    push(C.pv1v,ts,vp1);push(C.pv2v,ts,vp2);
+    push(C.pv1a,ts,cp1);push(C.pv2a,ts,cp2);
+  }
+
+  document.getElementById("hdr-updated").textContent="Last update: "+(d.ts?d.ts.slice(11,19):"--");
+
+  // Alert log
+  addAlert(d.ts?d.ts.slice(11,19):"--",
+    pinv>100?"Solar กำลังผลิต "+pinv.toFixed(0)+"W":
+    p>100?"ดึงไฟจากกริด "+Math.abs(p).toFixed(0)+"W":
+    p<-100?"ส่งไฟออกกริด "+Math.abs(p).toFixed(0)+"W":"ระบบทำงานปกติ",
+    pinv>100?"ok":p>200?"warn":"ok"
+  );
+}
+
+function setDot(dotId,valId,ok,okTxt,errTxt){
+  const d=document.getElementById(dotId),v=document.getElementById(valId);
+  if(d){d.className="status-dot "+(ok?"s-ok":"s-err");}
+  if(v){v.textContent=ok?okTxt:errTxt;v.style.color=ok?var_c("--green"):var_c("--red");}
+}
+
+let alertLines=[];
+function addAlert(ts,msg,type){
+  alertLines.unshift({ts,msg,type});
+  if(alertLines.length>8) alertLines.pop();
+  const el=document.getElementById("alert-log");
+  el.innerHTML=alertLines.map(a=>`
+    <div class="alert-row">
+      <span class="alert-time">${a.ts}</span>
+      <span class="alert-msg alert-${a.type}">${a.msg}</span>
+    </div>`).join("");
+}
+
+// ── Flux poll ────────────────────────────────────────────────
+async function fetchFlux(){
+  try{
+    const r=await fetch(API+"/latest");if(!r.ok)return;
+    const d=await r.json();if(!d||!d.ts)return;
+    const v=d.flux||0;
+    if(v!==lastFlux){lastFlux=v;showFlux(v);push(C.fx,d.ts.slice(11,16),v);}
+  }catch(e){}
+}
+
+async function fetchLatest(){
+  try{
+    const r=await fetch(API+"/latest");if(!r.ok)return;
+    const d=await r.json();
+    if(d&&d.ts){
+      process(d);showFlux(d.flux||0);
+      push(C.fx,d.ts.slice(11,16),d.flux||0);lastFlux=d.flux||0;
+      setDot("s-esp32","sv-esp32",true,"ONLINE","OFFLINE");
+      setDot("s-flask","sv-flask",true,"ONLINE","OFFLINE");
+    }
+  }catch(e){
+    setDot("s-esp32","sv-esp32",false,"ONLINE","OFFLINE");
+    setDot("s-flask","sv-flask",false,"ONLINE","OFFLINE");
+  }
+}
+
+async function initCharts(){
+  try{
+    const r=await fetch(API+"/realtime");const rows=await r.json();
+    rows.forEach(d=>{process(d,true);push(C.fx,d.ts?d.ts.slice(11,16):"--",d.flux||0);});
+  }catch(e){}
+}
+
+// ── History ──────────────────────────────────────────────────
+let hC={};
+function killH(){Object.values(hC).forEach(c=>c&&c.destroy());hC={};}
+
+function mkLineH(id,datasets,yUnit){
+  const el=document.getElementById(id);if(!el)return null;
+  return new Chart(el.getContext("2d"),{
+    type:"line",data:{labels:[],datasets},
+    options:{responsive:true,maintainAspectRatio:true,animation:{duration:150},
+      plugins:{legend:{display:datasets.length>1,labels:{boxWidth:8,padding:12,font:{size:10}}},
+        tooltip:{backgroundColor:"#0B1A2E",borderColor:"#1A3050",borderWidth:1,
+          titleColor:"#D0E8FF",bodyColor:"#7FA8CC",padding:9,
+          mode:"index",intersect:false,
+          callbacks:{label:ctx=>` ${ctx.dataset.label}: ${ctx.parsed.y.toFixed(3)} ${yUnit}`}}},
+      scales:{x:{ticks:{maxTicksLimit:8,font:{size:9}},grid:{color:"#0D1F36"}},
+        y:{ticks:{maxTicksLimit:5,font:{size:9}},grid:{color:"#1A3050"}}}}
+  });
+}
+function dsH(label,color){return{label,data:[],borderColor:color,backgroundColor:color+"10",
+  borderWidth:1.5,tension:.35,pointRadius:0,fill:true};}
+
+async function loadDates(){
+  try{
+    const r=await fetch(API+"/dates");const dates=await r.json();
+    const w=document.getElementById("chips");w.innerHTML="";
+    dates.forEach(d=>{
+      const c=document.createElement("div");c.className="chip";c.textContent=d;
+      c.onclick=()=>{
+        document.querySelectorAll(".chip").forEach(x=>x.classList.remove("on"));
+        c.classList.add("on");document.getElementById("hdate").value=d;loadHist();};
+      w.appendChild(c);
+    });
+  }catch(e){}
+}
+
+async function loadHist(){
+  const date=document.getElementById("hdate").value;if(!date)return;
+  document.getElementById("hcontent").style.display="none";
+  document.getElementById("hnodata").style.display="none";
+  document.querySelectorAll(".chip").forEach(c=>c.classList.toggle("on",c.textContent===date));
+  try{
+    const r=await fetch(API+"/history?date="+date);const rows=await r.json();
+    if(!rows.length){document.getElementById("hnodata").style.display="block";return;}
+    const en=rows.map(r=>({...r,pinv:((r.vinv||0)/10)*((r.cinv||0)/1000),
+      vpv1r:(r.vpv1||0)/10,vpv2r:(r.vpv2||0)/10}));
+    const sg=document.getElementById("sgrid");sg.innerHTML="";
+    [["แรงดัน V","voltage"],["กระแส A","current"],["P กริด W","power"],
+      ["V INV","vinv"],["I INV","cinv"],["P INV","pinv"],
+      ["PV1 V","vpv1r"],["PV1 A","cpv1"],["PV2 V","vpv2r"],["PV2 A","cpv2"],["Solar I","flux"]
+    ].forEach(([lbl,key])=>{
+      const v=en.map(r=>r[key]).filter(x=>x!=null&&!isNaN(x));
+      if(!v.length)return;
+      const avg=v.reduce((a,b)=>a+b,0)/v.length;
+      sg.innerHTML+=`<div class="stat-card"><div class="stat-name">${lbl}</div>
+        <div class="stat-row"><span class="stat-k">MAX</span><span class="stat-v">${Math.max(...v).toFixed(3)}</span></div>
+        <div class="stat-row"><span class="stat-k">MIN</span><span class="stat-v">${Math.min(...v).toFixed(3)}</span></div>
+        <div class="stat-row"><span class="stat-k">AVG</span><span class="stat-v">${avg.toFixed(3)}</span></div></div>`;
+    });
+    killH();
+    const lb=en.map(r=>r.ts.slice(11,16));
+    hC.v  =mkLineH("hc-v",  [dsH("V","#00C8E8")],"V");
+    hC.a  =mkLineH("hc-a",  [dsH("A","#FFB300")],"A");
+    hC.inv=mkLineH("hc-inv",[dsH("V INV","#7C6EFA"),dsH("I INV","#00E676")],"");
+    hC.pv =mkLineH("hc-pv", [dsH("PV1 V","#FFB300"),dsH("PV2 V","#FF6B2B")],"V");
+    hC.pc =mkLineH("hc-pc", [dsH("PV1 A","#FFB300"),dsH("PV2 A","#FF6B2B")],"A");
+    hC.pw =mkLineH("hc-pw", [dsH("P INV","#00E676"),dsH("Pgrid","#FF6B2B")],"W");
+    hC.fx =mkLineH("hc-fx", [dsH("Solar I","#FF6B2B")],"W/m²");
+    const setD=(ch,...keys)=>{if(!ch)return;ch.data.labels=lb;keys.forEach((k,i)=>ch.data.datasets[i].data=en.map(r=>r[k]||0));ch.update();};
+    setD(hC.v,"voltage");setD(hC.a,"current");setD(hC.inv,"vinv","cinv");
+    setD(hC.pv,"vpv1r","vpv2r");setD(hC.pc,"cpv1","cpv2");setD(hC.pw,"pinv","power");setD(hC.fx,"flux");
+    document.getElementById("hcontent").style.display="block";
+  }catch(e){document.getElementById("hnodata").style.display="block";document.getElementById("hnodata").textContent="ERROR: "+e.message;}
+}
+
+function exportCsv(){
+  const d=document.getElementById("hdate").value;
+  if(!d){alert("เลือกวันที่ก่อน");return;}window.open(API+"/export?date="+d);
+}
+
+// ── Clock ─────────────────────────────────────────────────────
+function tick(){
+  const n=new Date(),p=v=>String(v).padStart(2,"0");
+  document.getElementById("hdr-time").textContent=`${p(n.getHours())}:${p(n.getMinutes())}:${p(n.getSeconds())}`;
+  document.getElementById("hdr-date").textContent=`${p(n.getDate())} / ${p(n.getMonth()+1)} / ${n.getFullYear()}`;
+}
+setInterval(tick,1000);tick();
+
+// ── Boot ──────────────────────────────────────────────────────
+document.getElementById("hdate").value=new Date().toISOString().slice(0,10);
+initCharts();
+setTimeout(()=>{fetchLatest();setInterval(fetchLatest,POLL);setInterval(fetchFlux,FLUX_POLL);},2000);
+</script>
+</body>
+</html>
