@@ -114,10 +114,27 @@ def export():
             "SELECT * FROM readings WHERE date(ts)=? ORDER BY ts", (date,)
         ).fetchall()
     buf = io.StringIO()
-    csv.writer(buf).writerow(KEYS)
-    csv.writer(buf).writerows(rows)
+    w = csv.writer(buf)
+    w.writerow(["วันที่","เวลา","แรงดัน V","กระแส A","กำลังไฟฟ้า W",
+                "V INV (V)","I INV (A)","P INV (W)",
+                "แรงดัน PV1 (V)","กระแส PV1 (A)",
+                "แรงดัน PV2 (V)","กระแส PV2 (A)",
+                "Solar I (W/m2)"])
+    for r in rows:
+        ts   = r[1] if r[1] else ""
+        vinv = round((r[9]  or 0)/10,   1)
+        cinv = round((r[10] or 0)/1000, 3)
+        pinv = round(vinv*cinv, 2)
+        vpv1 = round((r[5]  or 0)/10,   1)
+        vpv2 = round((r[7]  or 0)/10,   1)
+        w.writerow([ts[:10], ts[11:19] if len(ts)>=19 else "",
+                    round(r[2] or 0,2), round(r[3] or 0,3), round(r[4] or 0,1),
+                    vinv, cinv, pinv,
+                    vpv1, round(r[6] or 0,3),
+                    vpv2, round(r[8] or 0,3),
+                    round(r[11] or 0,1)])
     return Response(buf.getvalue(), mimetype="text/csv",
-        headers={"Content-Disposition": f"attachment;filename=solar_{date}.csv"})
+        headers={"Content-Disposition": f"attachment;filename=SUT_EV_{date}.csv"})
 
 if __name__ == "__main__":
     import os
