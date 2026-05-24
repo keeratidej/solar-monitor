@@ -218,8 +218,8 @@ def export():
             fmt(d.get("current",0),3),
             fmt(d.get("power",0),1),
             round(vinv,1), round(cinv,3), pinv,
-            round(vpv1,1), round(fmt(d.get("cpv1",0),3)/10, 3),
-            round(vpv2,1), round(fmt(d.get("cpv2",0),3)/10, 3),
+            round(vpv1,1), round(fmt(d.get("cpv1",0),3)/100, 3),
+            round(vpv2,1), round(fmt(d.get("cpv2",0),3)/100, 3),
             fmt(d.get("flux",0),2),
         ])
     return Response(buf.getvalue(), mimetype="text/csv",
