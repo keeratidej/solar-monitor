@@ -503,11 +503,11 @@ input[type=date]:focus{outline:none;border-color:var(--cyan)}
     </div>
   </div>
 
-  <div class="sec-label">Solar Irradiance · ความเข้มแสง</div>
+  <div class="sec-label">Solar Irradiance · W/m²</div>
   <div class="chart-row">
     <div class="chart-card" style="display:flex;align-items:center;gap:28px;flex-wrap:wrap">
       <div>
-        <div style="font-size:.58rem;letter-spacing:3px;text-transform:uppercase;color:var(--tx3);margin-bottom:6px;font-family:'Rajdhani',sans-serif">Solar I · W/m²</div>
+        <div style="font-size:.58rem;letter-spacing:3px;text-transform:uppercase;color:var(--tx3);margin-bottom:6px;font-family:'Rajdhani',sans-serif">Solar Irradiance (W/m²)</div>
         <div style="font-family:'Orbitron',monospace;font-size:3.5rem;font-weight:900;color:#fff;line-height:1;transition:color .4s" id="flux-big">---</div>
         <div style="font-size:.68rem;color:var(--tx2);margin-top:4px">W/m²</div>
         <div style="font-size:.85rem;color:var(--tx2);margin-top:8px" id="flux-st">—</div>
@@ -522,7 +522,7 @@ input[type=date]:focus{outline:none;border-color:var(--cyan)}
       </div>
     </div>
     <div class="chart-card">
-      <div class="chart-hdr"><div class="chart-title"><div class="chart-dot" style="background:var(--orange)"></div>Solar Irradiance Trend · W/m²</div></div>
+      <div class="chart-hdr"><div class="chart-title"><div class="chart-dot" style="background:var(--orange)"></div>Solar Irradiance Trend (W/m²)</div></div>
       <canvas id="c-fx"></canvas>
     </div>
   </div>
@@ -671,7 +671,7 @@ const C={
   pw:   mkLine("c-pw",  [ds("P_Solar","#00E676"),ds("Pgrid","#FF6B2B")],"W"),
   pvv:  mkLine("c-pvv", [ds("V_PV1","#FFB300"),ds("V_PV2","#FF6B2B")],"V"),
   pva:  mkLine("c-pva", [ds("I_PV1","#FFB300"),ds("I_PV2","#FF6B2B")],"A"),
-  fx:   mkLine("c-fx",  [ds("Solar I","#FF6B2B")],"W/m²"),
+  fx:   mkLine("c-fx",  [ds("Solar Irradiance","#FF6B2B")],"W/m²"),
 };
 
 function push(chart,ts,...vals){
@@ -754,11 +754,11 @@ function updateFlow(pinv,pgrid,p){
 
 // ── Process record ───────────────────────────────────────────
 function process(d,pushChart=true){
-  const ts=d.ts?d.ts.slice(11,16):"--:--";
+  const ts=d.ts?d.ts.slice(11,19):"--:--:--";
   const v=d.voltage||0, a=d.current||0, p=d.power||0;
   const vi=(d.vinv||0)/10, ci=(d.cinv||0)/1000;
   const pinv=vi*ci;
-  const vp1=(d.vpv1||0)/10,cp1=d.cpv1||0,vp2=(d.vpv2||0)/10,cp2=d.cpv2||0;
+  const vp1=(d.vpv1||0)/10,cp1=(d.cpv1||0)/10,vp2=(d.vpv2||0)/10,cp2=(d.cpv2||0)/10;
   const load=pinv+p;
 
   // KPI
@@ -803,11 +803,21 @@ function process(d,pushChart=true){
   lastTs=d.ts;
   kset("k-today",(energyAccum/1000),2);
 
+  // update Inverter & Strings table
+  const eitb=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v;};
+  eitb("itb-pinv", pinv.toFixed(1)+" W");
+  eitb("itb-vinv", vi.toFixed(1)+" V");
+  eitb("itb-cinv", ci.toFixed(3)+" A");
+  eitb("itb-vp1",  vp1.toFixed(1));
+  eitb("itb-cp1",  cp1.toFixed(3));
+  eitb("itb-vp2",  vp2.toFixed(1));
+  eitb("itb-cp2",  cp2.toFixed(3));
+
   if(pushChart){
     push(C.v,ts,v);push(C.a,ts,a);
     push(C.pinv,ts,pinv);push(C.pw,ts,pinv,p);
-    push(C.pv1v,ts,vp1);push(C.pv2v,ts,vp2);
-    push(C.pv1a,ts,cp1);push(C.pv2a,ts,cp2);
+    push(C.pvv,ts,vp1,vp2);
+    push(C.pva,ts,cp1,cp2);
   }
 
   document.getElementById("hdr-updated").textContent="Last update: "+(d.ts?d.ts.slice(11,19):"--");
@@ -868,7 +878,7 @@ async function fetchLatest(){
 async function initCharts(){
   try{
     const r=await fetch(API+"/realtime");const rows=await r.json();
-    rows.forEach(d=>{process(d,true);push(C.fx,d.ts?d.ts.slice(11,16):"--",d.flux||0);});
+    rows.forEach(d=>{process(d,true);push(C.fx,d.ts?d.ts.slice(11,19):"--:--:--",d.flux||0);});
   }catch(e){}
 }
 
@@ -917,11 +927,11 @@ async function loadHist(){
     const r=await fetch(API+"/history?date="+date);const rows=await r.json();
     if(!rows.length){document.getElementById("hnodata").style.display="block";return;}
     const en=rows.map(r=>({...r,pinv:((r.vinv||0)/10)*((r.cinv||0)/1000),
-      vpv1r:(r.vpv1||0)/10,vpv2r:(r.vpv2||0)/10}));
+      vpv1r:(r.vpv1||0)/10,cpv1r:(r.cpv1||0)/10,vpv2r:(r.vpv2||0)/10,cpv2r:(r.cpv2||0)/10}));
     const sg=document.getElementById("sgrid");sg.innerHTML="";
     [["แรงดัน V","voltage"],["กระแส A","current"],["P กริด W","power"],
       ["V INV","vinv"],["I INV","cinv"],["P_Solar","pinv"],
-      ["PV1 V","vpv1r"],["PV1 A","cpv1"],["PV2 V","vpv2r"],["PV2 A","cpv2"],["Solar I","flux"]
+      ["PV1 V","vpv1r"],["PV1 A","cpv1"],["PV2 V","vpv2r"],["PV2 A","cpv2"],["Solar Irradiance","flux"]
     ].forEach(([lbl,key])=>{
       const v=en.map(r=>r[key]).filter(x=>x!=null&&!isNaN(x));
       if(!v.length)return;
@@ -932,17 +942,17 @@ async function loadHist(){
         <div class="stat-row"><span class="stat-k">AVG</span><span class="stat-v">${avg.toFixed(3)}</span></div></div>`;
     });
     killH();
-    const lb=en.map(r=>r.ts.slice(11,16));
+    const lb=en.map(r=>r.ts?r.ts.slice(11,19):"--");
     hC.v  =mkLineH("hc-v",  [dsH("V","#00C8E8")],"V");
     hC.a  =mkLineH("hc-a",  [dsH("A","#FFB300")],"A");
     hC.inv=mkLineH("hc-inv",[dsH("V INV","#7C6EFA"),dsH("I INV","#00E676")],"");
     hC.pv =mkLineH("hc-pv", [dsH("PV1 V","#FFB300"),dsH("PV2 V","#FF6B2B")],"V");
     hC.pc =mkLineH("hc-pc", [dsH("PV1 A","#FFB300"),dsH("PV2 A","#FF6B2B")],"A");
     hC.pw =mkLineH("hc-pw", [dsH("P_Solar","#00E676"),dsH("Pgrid","#FF6B2B")],"W");
-    hC.fx =mkLineH("hc-fx", [dsH("Solar I","#FF6B2B")],"W/m²");
+    hC.fx =mkLineH("hc-fx", [dsH("Solar Irradiance","#FF6B2B")],"W/m²");
     const setD=(ch,...keys)=>{if(!ch)return;ch.data.labels=lb;keys.forEach((k,i)=>ch.data.datasets[i].data=en.map(r=>r[k]||0));ch.update();};
     setD(hC.v,"voltage");setD(hC.a,"current");setD(hC.inv,"vinv","cinv");
-    setD(hC.pv,"vpv1r","vpv2r");setD(hC.pc,"cpv1","cpv2");setD(hC.pw,"pinv","power");setD(hC.fx,"flux");
+    setD(hC.pv,"vpv1r","vpv2r");setD(hC.pc,"cpv1r","cpv2r");setD(hC.pw,"pinv","power");setD(hC.fx,"flux");
     document.getElementById("hcontent").style.display="block";
   }catch(e){document.getElementById("hnodata").style.display="block";document.getElementById("hnodata").textContent="ERROR: "+e.message;}
 }
