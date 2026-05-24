@@ -291,13 +291,6 @@ input[type=date]:focus{outline:none;border-color:var(--cyan)}
       <div class="kpi-unit">kW</div>
       <div class="kpi-sub" id="kpi-grid-sub" style="color:var(--tx3)">--</div>
     </div>
-    <div class="kpi pu">
-      <div class="kpi-icon">⚙</div>
-      <div class="kpi-label">P INV</div>
-      <div class="kpi-label-th">กำลัง Inverter</div>
-      <div class="kpi-val" id="k-pinvw">----</div>
-      <div class="kpi-unit">W</div>
-    </div>
     <div class="kpi">
       <div class="kpi-icon">〰</div>
       <div class="kpi-label">Voltage</div>
@@ -384,18 +377,18 @@ input[type=date]:focus{outline:none;border-color:var(--cyan)}
 
 
 <!-- CHARTS ROW 1 -->
-  <div class="sec-label">Electrical Trends · แนวโน้มไฟฟ้า</div>
+  <div class="sec-label">Grid Electrical Trends · V_grid &amp; I_grid</div>
   <div class="chart-row">
     <div class="chart-card">
       <div class="chart-hdr">
-        <div class="chart-title"><div class="chart-dot" style="background:var(--cyan)"></div>Voltage · แรงดัน (V)</div>
+        <div class="chart-title"><div class="chart-dot" style="background:var(--cyan)"></div>Grid Voltage · V_grid (V)</div>
         <div class="time-btns"><button class="tbtn on" onclick="setRange(this,'1H')">1H</button><button class="tbtn" onclick="setRange(this,'6H')">6H</button><button class="tbtn" onclick="setRange(this,'1D')">1D</button></div>
       </div>
       <canvas id="c-v"></canvas>
     </div>
     <div class="chart-card">
       <div class="chart-hdr">
-        <div class="chart-title"><div class="chart-dot" style="background:var(--amber)"></div>Current · กระแส (A)</div>
+        <div class="chart-title"><div class="chart-dot" style="background:var(--amber)"></div>Grid Current · I_grid (A)</div>
         <div class="time-btns"><button class="tbtn on" onclick="setRange(this,'1H')">1H</button><button class="tbtn" onclick="setRange(this,'6H')">6H</button><button class="tbtn" onclick="setRange(this,'1D')">1D</button></div>
       </div>
       <canvas id="c-a"></canvas>
@@ -613,7 +606,7 @@ input[type=date]:focus{outline:none;border-color:var(--cyan)}
 </div><!-- /app -->
 
 <script>
-const API="/api", POLL=60000, FLUX_POLL=5000, MAX=60;
+const API="/api", POLL=60000, FLUX_POLL=5000, MAX=1440;
 let energyAccum=0, lastTs=null;
 
 // ── Tab ─────────────────────────────────────────────────────
@@ -765,7 +758,6 @@ function process(d,pushChart=true){
   kset("k-pinv",(pinv/1000),2);
   kset("k-load",(Math.abs(load)/1000),2);
   kset("k-pgrid",(Math.abs(p)/1000),2);
-  kset("k-pinvw",pinv,0);
   kset("k-v",v,1);
   kset("k-a",a,3);
 
@@ -798,7 +790,12 @@ function process(d,pushChart=true){
   // energy accumulation (rough estimate)
   if(pushChart && lastTs){
     const dtH=(new Date(d.ts.replace(" ","T"))-new Date(lastTs.replace(" ","T")))/3600000;
-    if(dtH>0&&dtH<2) energyAccum+=Math.max(0,pinv)*dtH;
+    if(dtH>0&&dtH<0.1){
+      energyAccum+=Math.max(0,pinv)*dtH;
+      if(p>0) eImport+=p*dtH;
+      if(p<0) eExport+=Math.abs(p)*dtH;
+      eLoadDay+=Math.max(0,pinv+p)*dtH;
+    }
   }
   lastTs=d.ts;
   kset("k-today",(energyAccum/1000),2);
@@ -855,7 +852,7 @@ async function fetchFlux(){
     const r=await fetch(API+"/latest");if(!r.ok)return;
     const d=await r.json();if(!d||!d.ts)return;
     const v=d.flux||0;
-    if(v!==lastFlux){lastFlux=v;showFlux(v);push(C.fx,d.ts.slice(11,16),v);}
+    if(v!==lastFlux){lastFlux=v;showFlux(v);push(C.fx,d.ts.slice(11,19),v);}
   }catch(e){}
 }
 
@@ -929,17 +926,33 @@ async function loadHist(){
     const en=rows.map(r=>({...r,pinv:((r.vinv||0)/10)*((r.cinv||0)/1000),
       vpv1r:(r.vpv1||0)/10,cpv1r:(r.cpv1||0)/10,vpv2r:(r.vpv2||0)/10,cpv2r:(r.cpv2||0)/10}));
     const sg=document.getElementById("sgrid");sg.innerHTML="";
-    [["แรงดัน V","voltage"],["กระแส A","current"],["P กริด W","power"],
-      ["V INV","vinv"],["I INV","cinv"],["P_Solar","pinv"],
-      ["PV1 V","vpv1r"],["PV1 A","cpv1"],["PV2 V","vpv2r"],["PV2 A","cpv2"],["Solar Irradiance","flux"]
-    ].forEach(([lbl,key])=>{
-      const v=en.map(r=>r[key]).filter(x=>x!=null&&!isNaN(x));
-      if(!v.length)return;
-      const avg=v.reduce((a,b)=>a+b,0)/v.length;
-      sg.innerHTML+=`<div class="stat-card"><div class="stat-name">${lbl}</div>
-        <div class="stat-row"><span class="stat-k">MAX</span><span class="stat-v">${Math.max(...v).toFixed(3)}</span></div>
-        <div class="stat-row"><span class="stat-k">MIN</span><span class="stat-v">${Math.min(...v).toFixed(3)}</span></div>
-        <div class="stat-row"><span class="stat-k">AVG</span><span class="stat-v">${avg.toFixed(3)}</span></div></div>`;
+    let ePV=0,eImp=0,eExp=0,eLoadH=0;
+    for(let i=1;i<en.length;i++){
+      const t1=new Date(en[i-1].ts.replace(" ","T"));
+      const t2=new Date(en[i].ts.replace(" ","T"));
+      const dtH=(t2-t1)/3600000;
+      if(dtH<=0||dtH>0.1) continue;
+      const avgP=((en[i-1].pinv||0)+(en[i].pinv||0))/2;
+      const avgG=((en[i-1].power||0)+(en[i].power||0))/2;
+      ePV+=Math.max(0,avgP)*dtH;
+      if(avgG>0) eImp+=avgG*dtH;
+      if(avgG<0) eExp+=Math.abs(avgG)*dtH;
+      eLoadH+=Math.max(0,avgP+avgG)*dtH;
+    }
+    const co2=(ePV/1000*0.4674);
+    [
+      {name:"Energy PV Yield",unit:"kWh",val:(ePV/1000).toFixed(3),color:"#00E676",icon:"☀"},
+      {name:"Energy Grid Import",unit:"kWh",val:(eImp/1000).toFixed(3),color:"#FF6B2B",icon:"📥"},
+      {name:"Energy Grid Export",unit:"kWh",val:(eExp/1000).toFixed(3),color:"#00C8E8",icon:"📤"},
+      {name:"Total Consumption",unit:"kWh",val:(eLoadH/1000).toFixed(3),color:"#9B6DFF",icon:"🏠"},
+      {name:"CO₂ Avoided",unit:"kgCO₂",val:co2.toFixed(3),color:"#00E676",icon:"🌿"},
+    ].forEach(({name,unit,val,color,icon})=>{
+      sg.innerHTML+=`<div class="stat-card" style="border-color:${color}44">
+        <div style="font-size:1.3rem;margin-bottom:6px">${icon}</div>
+        <div class="stat-name" style="color:${color};font-size:.7rem">${name}</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:1.6rem;font-weight:700;color:#fff;margin:6px 0;line-height:1">${val}</div>
+        <div style="font-size:.65rem;color:var(--tx3)">${unit} · Daily Accumulated</div>
+      </div>`;
     });
     killH();
     const lb=en.map(r=>r.ts?r.ts.slice(11,19):"--");
