@@ -751,7 +751,7 @@ function process(d,pushChart=true){
   const v=d.voltage||0, a=d.current||0, p=d.power||0;
   const vi=(d.vinv||0)/10, ci=(d.cinv||0)/1000;
   const pinv=vi*ci;
-  const vp1=(d.vpv1||0)/10,cp1=(d.cpv1||0)/10,vp2=(d.vpv2||0)/10,cp2=(d.cpv2||0)/10;
+  const vp1=(d.vpv1||0)/10,cp1=(d.cpv1||0)/100,vp2=(d.vpv2||0)/10,cp2=(d.cpv2||0)/100;
   const load=pinv+p;
 
   // KPI
