@@ -606,7 +606,7 @@ input[type=date]:focus{outline:none;border-color:var(--cyan)}
 </div><!-- /app -->
 
 <script>
-const API="/api", POLL=5000, FLUX_POLL=5000, MAX=3000;
+const API="/api", POLL=5000, FLUX_POLL=5000, MAX=1440;
 let energyAccum=0, lastTs=null;
 
 // ── Tab ─────────────────────────────────────────────────────
@@ -629,32 +629,61 @@ Chart.defaults.borderColor="#1A3050";
 Chart.defaults.font.family="'Rajdhani',sans-serif";
 Chart.defaults.font.size=11;
 
-function mkLine(id,datasets,yUnit,h=160){
+function mkLine(id,datasets,yUnit){
   const el=document.getElementById(id);if(!el)return null;
   return new Chart(el.getContext("2d"),{
     type:"line",data:{labels:[],datasets},
     options:{
-      responsive:true,maintainAspectRatio:true,animation:false,
+      responsive:true,maintainAspectRatio:true,
+      animation:false,
+      transitions:{active:{animation:{duration:0}}},
       plugins:{
-        legend:{display:datasets.length>1,labels:{boxWidth:8,padding:14,font:{size:10}}},
-        tooltip:{backgroundColor:"#0B1A2E",borderColor:"#1A3050",borderWidth:1,
-          titleColor:"#D0E8FF",bodyColor:"#7FA8CC",padding:10,
+        legend:{display:datasets.length>1,labels:{
+          boxWidth:10,boxHeight:2,padding:16,
+          font:{size:10,family:"'Rajdhani',sans-serif"},
+          color:"#7FA8CC",
+          usePointStyle:true,pointStyle:"line"
+        }},
+        tooltip:{
+          backgroundColor:"rgba(7,17,31,0.92)",
+          borderColor:"#1E3A5F",borderWidth:1,
+          titleColor:"#D0E8FF",bodyColor:"#7FA8CC",
+          padding:10,cornerRadius:6,
           mode:"index",intersect:false,
-          callbacks:{label:ctx=>` ${ctx.dataset.label}: ${ctx.parsed.y.toFixed(3)} ${yUnit}`}}
+          callbacks:{label:ctx=>` ${ctx.dataset.label}: ${ctx.parsed.y.toFixed(2)} ${yUnit}`}
+        }
       },
       scales:{
-        x:{ticks:{maxTicksLimit:7,font:{size:9}},grid:{color:"#0D1F36"}},
-        y:{ticks:{maxTicksLimit:5,font:{size:9}},grid:{color:"#1A3050"}}
+        x:{
+          ticks:{maxTicksLimit:8,font:{size:9},color:"#3A6080",maxRotation:0},
+          grid:{color:"rgba(26,48,80,0.6)",drawBorder:false},
+          border:{color:"#1A3050"}
+        },
+        y:{
+          ticks:{maxTicksLimit:5,font:{size:9},color:"#3A6080"},
+          grid:{color:"rgba(26,48,80,0.8)",drawBorder:false},
+          border:{color:"#1A3050"}
+        }
       }
     }
   });
 }
 
 function ds(label,color,fill=true){
-  return{label,data:[],borderColor:color,
-    backgroundColor:fill?color+"22":color+"08",
-    borderWidth:2,tension:0.25,pointRadius:0,
-    fill:fill?{target:"origin",above:color+"28",below:color+"28"}:true};
+  return{
+    label,data:[],
+    borderColor:color,
+    backgroundColor:fill?color+"18":color+"08",
+    borderWidth:2,
+    tension:.3,
+    pointRadius:0,
+    pointHoverRadius:4,
+    pointHoverBackgroundColor:color,
+    pointHoverBorderColor:"#fff",
+    pointHoverBorderWidth:2,
+    fill:fill?{target:"origin",above:color+"22",below:color+"18"}:false,
+    cubicInterpolationMode:"monotone"
+  };
 }
 
 const C={
@@ -667,12 +696,25 @@ const C={
   fx:   mkLine("c-fx",  [ds("Solar Irradiance","#FF6B2B")],"W/m²"),
 };
 
+// ── seen timestamps (dedup) ──────────────────────────────────
+const _seen=new Set();
+
 function push(chart,ts,...vals){
   if(!chart)return;
+  // dedup: ถ้า ts นี้ถูก push ไปแล้วใน chart นี้ ข้ามไป
+  const key=chart.canvas.id+"|"+ts;
+  if(_seen.has(key))return;
+  _seen.add(key);
   chart.data.labels.push(ts);
   vals.forEach((v,i)=>chart.data.datasets[i].data.push(v));
-  if(chart.data.labels.length>MAX){chart.data.labels.shift();chart.data.datasets.forEach(d=>d.data.shift());}
-  chart.update();
+  // MAX=1440 คือ 24ชม ถ้าเกินตัดซ้าย แต่ปกติวันเดียวไม่ถึง
+  if(chart.data.labels.length>MAX){
+    chart.data.labels.shift();
+    chart.data.datasets.forEach(d=>d.data.shift());
+    // ลบ key เก่าออกจาก _seen ด้วย
+    _seen.delete(chart.canvas.id+"|"+chart.data.labels[0]);
+  }
+  chart.update("none");
 }
 
 // ── KPI helper ───────────────────────────────────────────────
@@ -852,7 +894,8 @@ async function fetchFlux(){
     const r=await fetch(API+"/latest");if(!r.ok)return;
     const d=await r.json();if(!d||!d.ts)return;
     const v=d.flux||0;
-    if(v!==lastFlux){lastFlux=v;showFlux(v);push(C.fx,d.ts.slice(11,19),v);}
+    const ts=d.ts.slice(11,19);
+    if(v!==lastFlux){lastFlux=v;showFlux(v);push(C.fx,ts,v);}
   }catch(e){}
 }
 
@@ -861,8 +904,11 @@ async function fetchLatest(){
     const r=await fetch(API+"/latest");if(!r.ok)return;
     const d=await r.json();
     if(d&&d.ts){
-      process(d);showFlux(d.flux||0);
-      push(C.fx,d.ts.slice(11,16),d.flux||0);lastFlux=d.flux||0;
+      const ts=d.ts.slice(11,19); // ใช้ timestamp จริงจากข้อมูล HH:MM:SS
+      process(d);
+      showFlux(d.flux||0);
+      push(C.fx,ts,d.flux||0);
+      lastFlux=d.flux||0;
       setDot("s-esp32","sv-esp32",true,"ONLINE","OFFLINE");
       setDot("s-flask","sv-flask",true,"ONLINE","OFFLINE");
     }
@@ -874,9 +920,17 @@ async function fetchLatest(){
 
 async function initCharts(){
   try{
-    const r=await fetch(API+"/realtime");const rows=await r.json();
-    rows.forEach(d=>{process(d,true);push(C.fx,d.ts?d.ts.slice(11,19):"--:--:--",d.flux||0);});
-  }catch(e){}
+    const r=await fetch(API+"/realtime");
+    if(!r.ok)return;
+    const rows=await r.json();
+    if(!Array.isArray(rows)||!rows.length)return;
+    // โหลดข้อมูลทั้งหมดตั้งแต่เริ่มต้น โดยใช้ timestamp จริงจากข้อมูล
+    rows.forEach(d=>{
+      const ts=d.ts?d.ts.slice(11,19):"--:--:--";
+      process(d,true);
+      push(C.fx,ts,d.flux||0);
+    });
+  }catch(e){console.warn("initCharts error:",e);}
 }
 
 // ── History ──────────────────────────────────────────────────
@@ -887,20 +941,38 @@ function mkLineH(id,datasets,yUnit){
   const el=document.getElementById(id);if(!el)return null;
   return new Chart(el.getContext("2d"),{
     type:"line",data:{labels:[],datasets},
-    options:{responsive:true,maintainAspectRatio:true,animation:{duration:150},
-      plugins:{legend:{display:datasets.length>1,labels:{boxWidth:8,padding:12,font:{size:10}}},
-        tooltip:{backgroundColor:"#0B1A2E",borderColor:"#1A3050",borderWidth:1,
-          titleColor:"#D0E8FF",bodyColor:"#7FA8CC",padding:9,
+    options:{
+      responsive:true,maintainAspectRatio:true,
+      animation:{duration:200},
+      plugins:{
+        legend:{display:datasets.length>1,labels:{
+          boxWidth:10,boxHeight:2,padding:14,font:{size:10},
+          color:"#7FA8CC",usePointStyle:true,pointStyle:"line"
+        }},
+        tooltip:{
+          backgroundColor:"rgba(7,17,31,0.92)",borderColor:"#1E3A5F",borderWidth:1,
+          titleColor:"#D0E8FF",bodyColor:"#7FA8CC",padding:9,cornerRadius:6,
           mode:"index",intersect:false,
-          callbacks:{label:ctx=>` ${ctx.dataset.label}: ${ctx.parsed.y.toFixed(3)} ${yUnit}`}}},
-      scales:{x:{ticks:{maxTicksLimit:8,font:{size:9}},grid:{color:"#0D1F36"}},
-        y:{ticks:{maxTicksLimit:5,font:{size:9}},grid:{color:"#1A3050"}}}}
+          callbacks:{label:ctx=>` ${ctx.dataset.label}: ${ctx.parsed.y.toFixed(2)} ${yUnit}`}
+        }
+      },
+      scales:{
+        x:{ticks:{maxTicksLimit:10,font:{size:9},color:"#3A6080",maxRotation:0},
+          grid:{color:"rgba(26,48,80,0.6)",drawBorder:false},border:{color:"#1A3050"}},
+        y:{ticks:{maxTicksLimit:5,font:{size:9},color:"#3A6080"},
+          grid:{color:"rgba(26,48,80,0.8)",drawBorder:false},border:{color:"#1A3050"}}
+      }
+    }
   });
 }
-function dsH(label,color){return{label,data:[],borderColor:color,
-  backgroundColor:color+"20",borderWidth:1.8,tension:.35,pointRadius:0,
-  fill:{target:"origin",above:color+"25",below:color+"25"}};}
-
+function dsH(label,color){return{
+  label,data:[],borderColor:color,
+  backgroundColor:color+"18",
+  borderWidth:2,tension:.3,pointRadius:0,
+  pointHoverRadius:4,pointHoverBackgroundColor:color,pointHoverBorderColor:"#fff",pointHoverBorderWidth:2,
+  fill:{target:"origin",above:color+"22",below:color+"18"},
+  cubicInterpolationMode:"monotone"
+};}
 async function loadDates(){
   try{
     const r=await fetch(API+"/dates");const dates=await r.json();
