@@ -613,14 +613,8 @@ let energyAccum=0, lastTs=null;
 // ── Timezone helper (UTC → Asia/Bangkok UTC+7) ────────────────
 function toLocalTS(ts){
   if(!ts)return"--:--:--";
-  // รองรับทั้ง "2024-01-01 05:00:42" และ "2024-01-01T05:00:42"
-  const d=new Date(ts.replace(" ","T")+"Z"); // บอกว่าเป็น UTC
-  const h=String(d.getUTCHours()+7).padStart(2,"0");  // +7 ชั่วโมง
-  const hNum=d.getUTCHours()+7;
-  const localH=String(hNum%24).padStart(2,"0");
-  const m=String(d.getUTCMinutes()).padStart(2,"0");
-  const s=String(d.getUTCSeconds()).padStart(2,"0");
-  return localH+":"+m+":"+s;
+  const s=String(ts);
+  return s.length>=19?s.slice(11,19):s;
 }
 
 // ── Tab ─────────────────────────────────────────────────────
