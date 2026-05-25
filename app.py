@@ -10,7 +10,7 @@ from datetime import datetime, timezone, timedelta
 app = Flask(__name__)
 CORS(app)
 
-# ── Timezone +0
+# ── Timezone +7
 TZ_OFFSET = timedelta(hours=0)
 
 def to_local(ts_str):
