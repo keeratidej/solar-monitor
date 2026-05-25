@@ -11,7 +11,7 @@ app = Flask(__name__)
 CORS(app)
 
 # ── Timezone +7
-TZ_OFFSET = timedelta(hours=0)
+TZ_OFFSET = timedelta(hours=7)
 
 def to_local(ts_str):
     """แปลง UTC timestamp string → UTC+7 string"""
