@@ -606,7 +606,7 @@ input[type=date]:focus{outline:none;border-color:var(--cyan)}
 </div><!-- /app -->
 
 <script>
-const API="/api", POLL=60000, FLUX_POLL=5000, MAX=3000;
+const API="/api", POLL=5000, FLUX_POLL=5000, MAX=3000;
 let energyAccum=0, lastTs=null;
 
 // ── Tab ─────────────────────────────────────────────────────
@@ -634,7 +634,7 @@ function mkLine(id,datasets,yUnit,h=160){
   return new Chart(el.getContext("2d"),{
     type:"line",data:{labels:[],datasets},
     options:{
-      responsive:true,maintainAspectRatio:true,animation:{duration:300},
+      responsive:true,maintainAspectRatio:true,animation:false,
       plugins:{
         legend:{display:datasets.length>1,labels:{boxWidth:8,padding:14,font:{size:10}}},
         tooltip:{backgroundColor:"#0B1A2E",borderColor:"#1A3050",borderWidth:1,
@@ -672,7 +672,7 @@ function push(chart,ts,...vals){
   chart.data.labels.push(ts);
   vals.forEach((v,i)=>chart.data.datasets[i].data.push(v));
   if(chart.data.labels.length>MAX){chart.data.labels.shift();chart.data.datasets.forEach(d=>d.data.shift());}
-  chart.update("none");
+  chart.update();
 }
 
 // ── KPI helper ───────────────────────────────────────────────
