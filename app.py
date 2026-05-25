@@ -5,24 +5,37 @@
 from flask import Flask, request, jsonify, Response, send_file
 from flask_cors import CORS
 import os, csv, io
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 app = Flask(__name__)
 CORS(app)
+
+# ── Timezone +7 (Asia/Bangkok) ─────────────────────────────────
+TZ_OFFSET = timedelta(hours=7)
+
+def to_local(ts_str):
+    """แปลง UTC timestamp string → UTC+7 string"""
+    if not ts_str:
+        return ts_str
+    try:
+        # รองรับทั้ง "2024-01-01 05:00:42" และ "2024-01-01T05:00:42.123456"
+        s = str(ts_str).replace("T", " ").split(".")[0]  # ตัด microseconds
+        dt_utc = datetime.strptime(s, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+        dt_local = dt_utc + TZ_OFFSET
+        return dt_local.strftime("%Y-%m-%d %H:%M:%S")
+    except Exception:
+        return str(ts_str)
 
 # ── เลือก database อัตโนมัติ ──────────────────────────────────
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
 if DATABASE_URL:
-    # Railway PostgreSQL
     import psycopg2
     import psycopg2.extras
     USE_PG = True
-    # Railway ใช้ postgres:// แต่ psycopg2 ต้องการ postgresql://
     if DATABASE_URL.startswith("postgres://"):
         DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 else:
-    # Local SQLite fallback
     import sqlite3
     USE_PG = False
     DB = os.path.join(os.path.dirname(__file__), "solar.db")
@@ -68,14 +81,16 @@ KEYS = ["id","ts","voltage","current","power",
 def row2dict(row):
     d = dict(zip(KEYS, row))
     if d.get("ts"):
-        d["ts"] = str(d["ts"])
+        if USE_PG:
+            # PostgreSQL เก็บ UTC → แปลงเป็น UTC+7 ก่อนส่งออก
+            d["ts"] = to_local(str(d["ts"]))
+        else:
+            # SQLite ใช้ localtime อยู่แล้ว ไม่ต้องแปลง
+            d["ts"] = str(d["ts"])
     return d
 
 def fetchall(cur):
-    if USE_PG:
-        return [row2dict(r) for r in cur.fetchall()]
-    else:
-        return [row2dict(r) for r in cur.fetchall()]
+    return [row2dict(r) for r in cur.fetchall()]
 
 # ── POST /api/data ─────────────────────────────────────────────
 @app.route("/api/data", methods=["POST"])
@@ -157,7 +172,12 @@ def history():
     if not date: return jsonify({"error":"date required"}), 400
     conn = get_conn(); cur = conn.cursor()
     if USE_PG:
-        cur.execute("SELECT * FROM readings WHERE ts::date=%s ORDER BY ts", (date,))
+        # ต้องแปลงเป็น UTC+7 ก่อน filter วันที่ (UTC 17:00 = ไทย 00:00 วันถัดไป)
+        cur.execute("""
+            SELECT * FROM readings
+            WHERE (ts + INTERVAL '7 hours')::date = %s
+            ORDER BY ts
+        """, (date,))
     else:
         cur.execute("SELECT * FROM readings WHERE date(ts)=? ORDER BY ts", (date,))
     rows = cur.fetchall()
@@ -169,7 +189,11 @@ def history():
 def dates():
     conn = get_conn(); cur = conn.cursor()
     if USE_PG:
-        cur.execute("SELECT DISTINCT ts::date FROM readings ORDER BY 1 DESC")
+        # แสดงวันที่ตาม UTC+7
+        cur.execute("""
+            SELECT DISTINCT (ts + INTERVAL '7 hours')::date
+            FROM readings ORDER BY 1 DESC
+        """)
     else:
         cur.execute("SELECT DISTINCT date(ts) FROM readings ORDER BY 1 DESC")
     rows = cur.fetchall()
@@ -183,13 +207,16 @@ def export():
     if not date: return jsonify({"error":"date required"}), 400
     conn = get_conn(); cur = conn.cursor()
     if USE_PG:
-        cur.execute("SELECT * FROM readings WHERE ts::date=%s ORDER BY ts", (date,))
+        cur.execute("""
+            SELECT * FROM readings
+            WHERE (ts + INTERVAL '7 hours')::date = %s
+            ORDER BY ts
+        """, (date,))
     else:
         cur.execute("SELECT * FROM readings WHERE date(ts)=? ORDER BY ts", (date,))
     rows = cur.fetchall()
     cur.close(); conn.close()
     buf = io.StringIO()
-    # Header เหมือน Google Sheets
     csv.writer(buf).writerow([
         "วันที่","เวลา",
         "แรงดัน (V)","กระแส (A)","กำลังไฟฟ้า (W)",
@@ -203,12 +230,12 @@ def export():
         except: return 0
 
     for r in rows:
-        d = row2dict(r)
+        d = row2dict(r)  # ts ถูกแปลงเป็น UTC+7 แล้วใน row2dict
         ts  = str(d.get("ts",""))
         date_part = ts[:10] if len(ts) >= 10 else ""
         time_part = ts[11:19] if len(ts) >= 19 else ""
-        vinv = fmt(d.get("vinv",0),1) / 10   # หาร 10
-        cinv = fmt(d.get("cinv",0),4) / 1000 # หาร 1000
+        vinv = fmt(d.get("vinv",0),1) / 10
+        cinv = fmt(d.get("cinv",0),4) / 1000
         pinv = round(vinv * cinv, 2)
         vpv1 = fmt(d.get("vpv1",0),1) / 10
         vpv2 = fmt(d.get("vpv2",0),1) / 10
