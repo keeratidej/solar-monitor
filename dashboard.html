@@ -165,7 +165,8 @@ nav{display:flex;gap:0;padding:0 28px;border-bottom:1px solid var(--border);back
 @media(max-width:1100px){.chart-row-4{grid-template-columns:1fr 1fr}}
 @media(max-width:700px){.chart-row-4{grid-template-columns:1fr}}
 
-.chart-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r);padding:16px}
+.chart-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r);padding:16px;min-height:200px}
+#hcontent .chart-card canvas,#app .chart-card canvas{height:180px !important}
 .chart-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px}
 .chart-title{font-family:'Rajdhani',sans-serif;font-size:.65rem;letter-spacing:3px;
   text-transform:uppercase;color:var(--cyan);display:flex;align-items:center;gap:8px}
@@ -176,7 +177,7 @@ nav{display:flex;gap:0;padding:0 28px;border-bottom:1px solid var(--border);back
   background:transparent;transition:all .15s}
 .tbtn:hover{border-color:var(--cyan);color:var(--cyan)}
 .tbtn.on{background:rgba(0,200,232,.1);border-color:var(--cyan);color:var(--cyan)}
-canvas{max-height:160px !important}
+canvas{display:block;width:100% !important}
 
 /* ══ SYSTEM HEALTH ══ */
 .health-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px}
@@ -371,7 +372,7 @@ input[type=date]:focus{outline:none;border-color:var(--cyan)}
           <button class="tbtn">1W</button>
         </div>
       </div>
-      <canvas id="c-pw" style="max-height:240px !important"></canvas>
+      <canvas id="c-pw"></canvas>
     </div>
   </div>
 
@@ -597,7 +598,7 @@ input[type=date]:focus{outline:none;border-color:var(--cyan)}
       <div class="chart-card"><div class="chart-hdr"><div class="chart-title"><div class="chart-dot" style="background:var(--green)"></div>P_Solar &amp; P_Grid (W)</div></div><canvas id="hc-pw"></canvas></div>
     </div>
     <div style="margin-bottom:20px">
-      <div class="chart-card"><div class="chart-hdr"><div class="chart-title"><div class="chart-dot" style="background:var(--orange)"></div>Solar Irradiance (W/m²)</div></div><canvas id="hc-fx" style="max-height:140px !important"></canvas></div>
+      <div class="chart-card"><div class="chart-hdr"><div class="chart-title"><div class="chart-dot" style="background:var(--orange)"></div>Solar Irradiance (W/m²)</div></div><canvas id="hc-fx"></canvas></div>
     </div>
   </div>
   <div class="nodata" id="hnodata" style="display:none">NO DATA FOUND</div>
@@ -647,7 +648,7 @@ function mkLine(id,datasets,yUnit){
   return new Chart(el.getContext("2d"),{
     type:"line",data:{labels:[],datasets},
     options:{
-      responsive:true,maintainAspectRatio:true,
+      responsive:true,maintainAspectRatio:false,
       animation:false,
       transitions:{active:{animation:{duration:0}}},
       plugins:{
@@ -980,7 +981,7 @@ function mkLineH(id,datasets,yUnit){
   return new Chart(el.getContext("2d"),{
     type:"line",data:{labels:[],datasets},
     options:{
-      responsive:true,maintainAspectRatio:true,
+      responsive:true,maintainAspectRatio:false,
       animation:{duration:200},
       plugins:{
         legend:{display:datasets.length>1,labels:{
@@ -1077,6 +1078,12 @@ async function loadHist(){
     setD(hC.v,"voltage");setD(hC.a,"current");setD(hC.inv,"vinv","cinv");
     setD(hC.pv,"vpv1r","vpv2r");setD(hC.pc,"cpv1r","cpv2r");setD(hC.pw,"pinv","power");setD(hC.fx,"flux");
     document.getElementById("hcontent").style.display="block";
+    // force resize ทุก chart หลัง container โผล่
+    requestAnimationFrame(()=>{
+      requestAnimationFrame(()=>{
+        Object.values(hC).forEach(c=>{if(c){c.resize();c.update("none");}});
+      });
+    });
   }catch(e){document.getElementById("hnodata").style.display="block";document.getElementById("hnodata").textContent="ERROR: "+e.message;}
 }
 
