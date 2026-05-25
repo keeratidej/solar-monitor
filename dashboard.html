@@ -653,8 +653,8 @@ function mkLine(id,datasets,yUnit,h=160){
 function ds(label,color,fill=true){
   return{label,data:[],borderColor:color,
     backgroundColor:fill?color+"22":color+"08",
-    borderWidth:1.8,tension:.4,pointRadius:0,
-    fill:fill?{target:"origin",above:color+"28",below:color+"28"}:false};
+    borderWidth:2,tension:0.25,pointRadius:0,
+    fill:fill?{target:"origin",above:color+"28",below:color+"28"}:true};
 }
 
 const C={
