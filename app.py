@@ -175,7 +175,7 @@ def history():
         # ต้องแปลงเป็น UTC+7 ก่อน filter วันที่ (UTC 17:00 = ไทย 00:00 วันถัดไป)
         cur.execute("""
             SELECT * FROM readings
-            WHERE (ts + INTERVAL '7 hours')::date = %s
+            WHERE (ts + INTERVAL '5 hours')::date = %s
             ORDER BY ts
         """, (date,))
     else:
@@ -191,7 +191,7 @@ def dates():
     if USE_PG:
         # แสดงวันที่ตาม UTC+7
         cur.execute("""
-            SELECT DISTINCT (ts + INTERVAL '7 hours')::date
+            SELECT DISTINCT (ts + INTERVAL '5 hours')::date
             FROM readings ORDER BY 1 DESC
         """)
     else:
@@ -209,7 +209,7 @@ def export():
     if USE_PG:
         cur.execute("""
             SELECT * FROM readings
-            WHERE (ts + INTERVAL '7 hours')::date = %s
+            WHERE (ts + INTERVAL '5 hours')::date = %s
             ORDER BY ts
         """, (date,))
     else:
