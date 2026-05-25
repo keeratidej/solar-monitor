@@ -919,18 +919,43 @@ async function fetchLatest(){
 }
 
 async function initCharts(){
+  const today=new Date().toISOString().slice(0,10);
+  // ดึง /history?date=วันนี้ ก่อน มีข้อมูลครบทั้งวัน
   try{
-    const r=await fetch(API+"/realtime");
-    if(!r.ok)return;
-    const rows=await r.json();
-    if(!Array.isArray(rows)||!rows.length)return;
-    // โหลดข้อมูลทั้งหมดตั้งแต่เริ่มต้น โดยใช้ timestamp จริงจากข้อมูล
-    rows.forEach(d=>{
+    const r=await fetch(API+"/history?date="+today);
+    if(r.ok){
+      const rows=await r.json();
+      if(Array.isArray(rows)&&rows.length>1){
+        rows.forEach(d=>{
+          if(!d.ts)return;
+          const ts=d.ts.slice(11,19);
+          const vi=(d.vinv||0)/10,ci=(d.cinv||0)/1000,pinv=vi*ci;
+          const v=d.voltage||0,a=d.current||0,p=d.power||0;
+          const vp1=(d.vpv1||0)/10,cp1=(d.cpv1||0)/100;
+          const vp2=(d.vpv2||0)/10,cp2=(d.cpv2||0)/100;
+          push(C.v,ts,v);push(C.a,ts,a);
+          push(C.pinv,ts,pinv);push(C.pw,ts,pinv,p);
+          push(C.pvv,ts,vp1,vp2);push(C.pva,ts,cp1,cp2);
+          push(C.fx,ts,d.flux||0);
+        });
+        const last=rows[rows.length-1];
+        if(last&&last.ts) lastTs=last.ts;
+        return;
+      }
+    }
+  }catch(e){}
+  // fallback: /realtime
+  try{
+    const r2=await fetch(API+"/realtime");
+    if(!r2.ok)return;
+    const rows2=await r2.json();
+    if(!Array.isArray(rows2)||!rows2.length)return;
+    rows2.forEach(d=>{
       const ts=d.ts?d.ts.slice(11,19):"--:--:--";
       process(d,true);
       push(C.fx,ts,d.flux||0);
     });
-  }catch(e){console.warn("initCharts error:",e);}
+  }catch(e){console.warn("initCharts fallback error:",e);}
 }
 
 // ── History ──────────────────────────────────────────────────
